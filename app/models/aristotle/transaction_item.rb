@@ -33,10 +33,6 @@ module Aristotle
 			joins(:offer).where( 'NOT( aristotle_offers.offer_type = :subscription_offer_type ) AND aristotle_transaction_items.subscription_id IS NOT NULL', subscription_offer_type: Offer.offer_types['subscription'] )
 		end
 
-		def self.data_src_labels
-			{ 'Amazon' => 'Amazon', 'woocommerce' => 'WooCommerce', ShopifyEtl.shopify_store_name => 'Shopify', 'swell_ecom_trial' => 'NHC Orders', 'swell_ecom_click_bank' => 'Click Bank', SwellEcomEtl.WHOLESALE_DATA_SRC => 'Wholesale' }
-		end
-
 		def self.full_refund
 			data_src_order_id_eqaution = "( aristotle_transaction_items.data_src || ' ' || aristotle_transaction_items.src_order_id )"
 

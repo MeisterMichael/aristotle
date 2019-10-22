@@ -18,7 +18,7 @@ class AristotleMigration < ActiveRecord::Migration[5.1]
 			t.datetime "created_at"
 			t.datetime "updated_at"
 			t.integer "parent_id"
-			t.string "data_src", default: "woocommerce"
+			t.string "data_src", default: nil
 			t.string "src_channel_partner_id"
 			t.string "woocommerce_channel_partner_id"
 			t.string "refersion_channel_partner_id"
@@ -44,7 +44,7 @@ class AristotleMigration < ActiveRecord::Migration[5.1]
 			t.integer "total"
 			t.datetime "created_at"
 			t.datetime "updated_at"
-			t.string "data_src", default: "woocommerce"
+			t.string "data_src", default: nil
 			t.string "currency", default: "USD"
 			t.integer "currency_total"
 			t.string "coupon_use_src_id"
@@ -63,7 +63,37 @@ class AristotleMigration < ActiveRecord::Migration[5.1]
 			t.integer "channel_partner_id"
 			t.datetime "created_at"
 			t.datetime "updated_at"
-			t.string "data_src", default: "woocommerce"
+			t.string "data_src", default: nil
+		end
+
+		create_table "aristotle_channel_partners", id: :serial, force: :cascade do |t|
+			t.string "code"
+			t.string "company_name"
+			t.string "name"
+			t.string "login"
+			t.string "email"
+			t.string "description"
+			t.integer "status"
+			t.float "score"
+			t.datetime "created_at"
+			t.datetime "updated_at"
+			t.integer "parent_id"
+			t.string "data_src", default: nil
+			t.string "src_channel_partner_id"
+			t.string "woocommerce_channel_partner_id"
+			t.string "refersion_channel_partner_id"
+			t.integer "user_id"
+			t.boolean "deny_recurring_commissions", default: false
+			t.float "commission_rate"
+			t.float "recruiter_commission_rate"
+		end
+
+		create_table "aristotle_currency_exchanges", id: :serial, force: :cascade do |t|
+			t.string "from_currency"
+			t.string "to_currency"
+			t.float "rate"
+			t.datetime "created_at"
+			t.datetime "updated_at"
 		end
 
 		create_table "aristotle_customers", id: :serial, force: :cascade do |t|
@@ -75,7 +105,7 @@ class AristotleMigration < ActiveRecord::Migration[5.1]
 			t.datetime "src_created_at"
 			t.datetime "created_at"
 			t.datetime "updated_at"
-			t.string "data_src", default: "woocommerce"
+			t.string "data_src", default: nil
 			t.string "src_customer_id"
 			t.string "shopify_customer_id"
 			t.string "klaviyo_id"
@@ -186,7 +216,7 @@ class AristotleMigration < ActiveRecord::Migration[5.1]
 			t.string "country_code"
 			t.datetime "created_at"
 			t.datetime "updated_at"
-			t.string "data_src", default: "woocommerce"
+			t.string "data_src", default: nil
 		end
 
 		create_table "aristotle_marketing_spends", id: :serial, force: :cascade do |t|
@@ -229,7 +259,7 @@ class AristotleMigration < ActiveRecord::Migration[5.1]
 			t.integer "offer_type", default: 0
 			t.datetime "created_at"
 			t.datetime "updated_at"
-			t.string "data_src", default: "woocommerce"
+			t.string "data_src", default: nil
 		end
 
 		create_table "aristotle_orders", id: :serial, force: :cascade do |t|
@@ -253,7 +283,7 @@ class AristotleMigration < ActiveRecord::Migration[5.1]
 			t.datetime "refunded_at"
 			t.datetime "created_at"
 			t.datetime "updated_at"
-			t.string "data_src", default: "woocommerce"
+			t.string "data_src", default: nil
 			t.string "src_order_label"
 			t.bigint "wholesale_client_id"
 			t.index ["src_order_label", "data_src"], name: "index_orders_on_src_order_label_and_data_src"
@@ -268,7 +298,7 @@ class AristotleMigration < ActiveRecord::Migration[5.1]
 			t.string "src_product_id"
 			t.datetime "created_at"
 			t.datetime "updated_at"
-			t.string "data_src", default: "woocommerce"
+			t.string "data_src", default: nil
 		end
 
 		create_table "aristotle_subscriptions", id: :serial, force: :cascade do |t|
@@ -310,7 +340,7 @@ class AristotleMigration < ActiveRecord::Migration[5.1]
 			t.datetime "trail_start_at"
 			t.datetime "created_at"
 			t.datetime "updated_at"
-			t.string "data_src", default: "woocommerce"
+			t.string "data_src", default: nil
 			t.string "recharge_subscription_id"
 			t.boolean "deny_recurring_commissions", default: false
 			t.integer "payment_type", default: 0
@@ -369,7 +399,7 @@ class AristotleMigration < ActiveRecord::Migration[5.1]
 			t.integer "commission"
 			t.datetime "created_at"
 			t.datetime "updated_at"
-			t.string "data_src", default: "woocommerce"
+			t.string "data_src", default: nil
 			t.string "src_line_item_id"
 			t.string "src_order_label"
 			t.integer "payment_type", default: 0

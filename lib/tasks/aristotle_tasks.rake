@@ -1,6 +1,7 @@
 
 # desc "Explaining what the task does"
 namespace :aristotle do
+
 	task :install do
 		puts "Installing Aristotle..... But, Why?"
 

@@ -1,10 +1,12 @@
 module Aristotle
 
-	class << self 
+	class << self
 		##### config vars
-		#mattr_accessor :something
+		mattr_accessor :internal_hosts
+		mattr_accessor :order_data_sources
 
-		#self.something = 'default'
+		self.internal_hosts = []
+		self.order_data_sources = []
 	end
 
 	# this function maps the vars from your app into your engine
