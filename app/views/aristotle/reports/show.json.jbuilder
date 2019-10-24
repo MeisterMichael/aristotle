@@ -4,6 +4,7 @@ google_cart_type_map = {
 	"datetime" => "datetime",
 	"integer" => "number",
 	"float" => "number",
+	"money" => "number",
 	"string" => "string",
 	"time" => "timeofday",
 }
@@ -20,7 +21,9 @@ json.rows @report.objectified_row_values do |row|
 		value = row[column[:label]]
 		value_formatted = nil
 
-		if value.respond_to?( :strftime ) && column[:type] == 'date'
+		if column[:type] == 'money'
+			value_formatted = number_to_currency( value )
+		elsif value.respond_to?( :strftime ) && column[:type] == 'date'
 			value = "Date(#{row[column[:label]].strftime("%Y,%m,%d,%H,%M,%S")})"
 			value_formatted = row[column[:label]].strftime("%m/%d/%y")
 		elsif value.respond_to?( :strftime ) && column[:type] == 'datetime'
