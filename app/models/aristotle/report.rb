@@ -4,7 +4,12 @@ module Aristotle
 	class Report
 
 		def initialize( options = {} )
-			@options = options
+			@options = options || {}
+
+			@options[:filters] ||= {}
+			self.class.filters.each do |filter|
+				@options[:filters][filter[:name].to_sym] ||= filter[:default] if filter.key? :default
+			end
 		end
 
 		def title

@@ -30,7 +30,8 @@ module Aristotle
 			end
 
 			if report_class.present? && report_class < Report
-				@report = report_class.new( params[:options] )
+				options = params.require(:options).permit( filters: report_class.filters.collect{|filter| filter[:name] } ) if params[:options]
+				@report = report_class.new( options )
 			else
 				raise ActionController::RoutingError.new('Not Found')
 			end
