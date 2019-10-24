@@ -1,0 +1,44 @@
+%html
+	%head
+		%title=@report.title
+	%body
+		%h1=@report.title
+		%p=@report.description
+
+		%hr
+
+		%h3 Columns
+		%table
+			%thead
+				%tr
+					%th Label
+					%th Type
+					%th Description
+
+			%tbody
+				- @report.columns.each do |row|
+					%tr
+						%td
+							= row[:label]
+						%td
+							= row[:type]
+						%td
+							= row[:description]
+		%hr
+
+		%h3 Filters
+		%table
+			%thead
+				%tr
+					%th Label
+					%th Type
+					%th Description
+			%tbody
+				- @report.filters.each do |row|
+					%tr
+						%td
+							= row[:label]
+						%td
+							= row[:type]
+						%td
+							= row[:description]

@@ -6,7 +6,7 @@ namespace :aristotle do
 		puts "Installing Aristotle..... But, Why?"
 
 		files = {
-
+			'application_report' => 'app/reports/',
 		}
 
 		files.each do |filename, path|

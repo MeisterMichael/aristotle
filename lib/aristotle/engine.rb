@@ -17,5 +17,7 @@ module Aristotle
 
 	class Engine < ::Rails::Engine
 		isolate_namespace Aristotle
+
+		config.autoload_paths += %W(#{config.root}/app/reports)
 	end
 end
