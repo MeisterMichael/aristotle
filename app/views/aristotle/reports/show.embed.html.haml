@@ -1,0 +1,17 @@
+%table
+	%thead
+		%tr
+			- @report.columns.each do |column|
+				%th
+					= column[:label]
+	%tbody
+		- @report.objectified_rows.each do |row|
+			%tr
+				- @report.columns.each do |column|
+					%td
+						- if row[column[:label]].respond_to?( :strftime ) && column[:type] == 'date'
+							= row[column[:label]].strftime("%m/%d/%y")
+						- elsif row[column[:label]].respond_to?( :strftime ) && column[:type] == 'datetime'
+							= row[column[:label]].strftime("%m/%d/%y %H:%M:%S")
+						- else
+							= row[column[:label]]

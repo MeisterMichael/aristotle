@@ -1,0 +1,6 @@
+- if row[column[:label]].respond_to?( :strftime ) && column[:type] == 'date'
+	= row[column[:label]].strftime("%m/%d/%y")
+- elsif row[column[:label]].respond_to?( :strftime ) && column[:type] == 'datetime'
+	= row[column[:label]].strftime("%m/%d/%y %H:%M:%S")
+- else
+	= row[column[:label]]

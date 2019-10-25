@@ -11,7 +11,7 @@ module Aristotle
 			respond_to do |format|
 				format.json {}
 				format.html {
-					render layout: false
+					render @report.template, layout: @report.layout
 				}
 				format.csv {
 					csv_results = CSV.generate(headers: true) do |csv|
@@ -30,7 +30,7 @@ module Aristotle
 			end
 
 			if report_class.present? && report_class < Report
-				options = params.require(:options).permit( filters: report_class.filters.collect{|filter| filter[:name] } ) if params[:options]
+				options = params.require(:options).permit( :embed, filters: report_class.filters.collect{|filter| filter[:name] } ) if params[:options]
 				@report = report_class.new( options )
 			else
 				raise ActionController::RoutingError.new('Not Found')

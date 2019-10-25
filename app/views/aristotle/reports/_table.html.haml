@@ -1,0 +1,13 @@
+
+%table
+	%thead
+		%tr
+			- @report.columns.each do |column|
+				%th
+					= column[:label]
+	%tbody
+		- @report.objectified_rows.each do |row|
+			%tr
+				- @report.columns.each do |column|
+					%td
+						= render 'aristotle/reports/cell', column: column, row: row

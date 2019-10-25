@@ -4,16 +4,85 @@ module Aristotle
 	class Report
 
 		def initialize( options = {} )
-			@options = options || {}
+			@options = self.class.get_class_options().deep_merge( (options || {}).to_h.deep_symbolize_keys )
 
 			@options[:filters] ||= {}
 			self.class.filters.each do |filter|
-				@options[:filters][filter[:name].to_sym] ||= filter[:default] if filter.key? :default
+				if filter.key? :default
+					default = filter[:default]
+					default = default.call() if default.respond_to? :call
+
+					@options[:filters][filter[:name].to_sym] ||= default
+				end
+			end
+
+			puts @options.to_s
+		end
+
+		def self.set_columns( columns )
+			@class_columns = columns
+		end
+		def self.columns
+			if @class_columns.respond_to? :call
+				@class_columns.call()
+			else
+				@class_columns
+			end
+		end
+
+
+		def self.set_filters( filters )
+			@class_filters = filters
+		end
+		def self.filters
+			if @class_filters.respond_to? :call
+				@class_filters.call()
+			else
+				@class_filters
+			end
+		end
+
+		def self.get_class_options()
+			@class_options ||= {}
+			@class_options
+		end
+
+		def self.set_option( name, value )
+			@class_options ||= {}
+			@class_options[name.to_sym] = value
+		end
+
+
+		def columns
+			self.class.columns
+		end
+
+		def description
+			@options[:description]
+		end
+
+		def filters
+			self.class.filters
+		end
+
+		def filter_values
+			@options[:filters]
+		end
+
+		def layout
+			not( @options[:embed] == '1' )
+		end
+
+		def template
+			if @options[:embed]
+				'show.embed'
+			else
+				'show'
 			end
 		end
 
 		def title
-			self.class.name.underscore.humanize.titleize
+			@options[:title] || self.class.name.underscore.humanize.titleize
 		end
 
 		def column_labels
@@ -32,6 +101,10 @@ module Aristotle
 			end
 		end
 
+		def options
+			@options
+		end
+
 		def row_values
 			value_rows = []
 		  rows.each do |row|
@@ -45,7 +118,6 @@ module Aristotle
 		end
 
 		def objectified_rows
-			puts "objectified_rows"
 			new_rows = []
 			rows.each do |row|
 				new_rows << {}
