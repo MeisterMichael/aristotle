@@ -74,11 +74,9 @@ module Aristotle
 		end
 
 		def template
-			if @options[:embed]
-				'show.embed'
-			else
-				'show'
-			end
+			template_name = @options[:template] || 'show'
+			template_name = "#{template_name}.embed" if @options[:embed]
+			template_name
 		end
 
 		def title
