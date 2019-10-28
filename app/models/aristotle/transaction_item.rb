@@ -21,8 +21,8 @@ module Aristotle
 			joins(:offer).where( 'aristotle_offers.offer_type = :subscription_offer_type', subscription_offer_type: Offer.offer_types['subscription'] )
 		end
 
-		def self.direct
-			self.nonrenewals
+		def self.direct # non-renewals and not referred by partner
+			self.nonrenewals.where( channel_partner: nil )
 		end
 
 		def self.nonrenewals
