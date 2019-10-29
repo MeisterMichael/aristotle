@@ -581,7 +581,7 @@ module Aristotle
 
 			status = 'pending'
 
-			timestamps = TransactionItem.where( data_src: @data_src, src_transaction_id: amazon_order['AmazonOrderId'] ).limit(1).select(Etl.TIMESTAMP_ATTRIBUTES).first.try(:attributes).try(:symbolize_keys).try(:except,:id)
+			timestamps = TransactionItem.where( data_src: @data_src, src_transaction_id: amazon_order['AmazonOrderId'] ).limit(1).select(EcomEtl.TIMESTAMP_ATTRIBUTES).first.try(:attributes).try(:symbolize_keys).try(:except,:id)
 			timestamps ||= {
 				src_created_at: amazon_order['PurchaseDate'],
 				pending_at: amazon_order['PurchaseDate'],
@@ -686,8 +686,8 @@ module Aristotle
 				item_taxes = (amazon_order_item['ItemTax']['Amount'].to_f * 100).to_i if amazon_order_item['ItemTax'].present?
 
 				# distributed values
-				distributed_discounts = Etl.distribute_quantities( item_discounts , quantity )
-				distributed_taxes = Etl.distribute_quantities( item_taxes, quantity )
+				distributed_discounts = EcomEtl.distribute_quantities( item_discounts , quantity )
+				distributed_taxes = EcomEtl.distribute_quantities( item_taxes, quantity )
 
 
 
@@ -748,7 +748,7 @@ module Aristotle
 					src_line_item_id:	transaction_items.first.src_line_item_id,
 				}
 
-				Etl.NUMERIC_ATTRIBUTES.each do |attr_name|
+				EcomEtl.NUMERIC_ATTRIBUTES.each do |attr_name|
 					line_item[attr_name] = 0
 				end
 
@@ -756,9 +756,9 @@ module Aristotle
 				line_item[:amount] 			= ( amazon_refund_order_item['ItemPrice']['Amount'].to_f * 100 ).to_i if amazon_refund_order_item['ItemPrice'].present?
 				line_item[:tax]				= ( amazon_refund_order_item['ItemTax']['Amount'].to_f * 100 ).to_i if amazon_refund_order_item['ItemTax'].present?
 
-				line_item[:total_discount] 	= Etl.sum_key_values( line_item, Etl.AGGREGATE_TOTAL_DISCOUNT_NUMERIC_ATTRIBUTES )
-				line_item[:sub_total] 		= Etl.sum_key_values( line_item, Etl.AGGREGATE_SUB_TOTAL_NUMERIC_ATTRIBUTES )
-				line_item[:total] 			= Etl.sum_key_values( line_item, Etl.AGGREGATE_TOTAL_NUMERIC_ATTRIBUTES )
+				line_item[:total_discount] 	= EcomEtl.sum_key_values( line_item, EcomEtl.AGGREGATE_TOTAL_DISCOUNT_NUMERIC_ATTRIBUTES )
+				line_item[:sub_total] 		= EcomEtl.sum_key_values( line_item, EcomEtl.AGGREGATE_SUB_TOTAL_NUMERIC_ATTRIBUTES )
+				line_item[:total] 			= EcomEtl.sum_key_values( line_item, EcomEtl.AGGREGATE_TOTAL_NUMERIC_ATTRIBUTES )
 
 				line_items << line_item
 			end

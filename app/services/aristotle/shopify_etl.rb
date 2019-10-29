@@ -480,7 +480,7 @@ module Aristotle
 					src_line_item_id:	order_line_item_id,
 				}
 
-				Etl.NUMERIC_ATTRIBUTES.each do |attr_name|
+				EcomEtl.NUMERIC_ATTRIBUTES.each do |attr_name|
 					line_item[attr_name] = 0
 				end
 

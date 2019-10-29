@@ -128,7 +128,7 @@ module Aristotle
 				# set defaults and denormatized order data for all refunds
 				# transaction items
 				default_transaction_item_attributes = { transaction_type: 'refund', data_src: data_src, src_transaction_id: src_transaction_id }
-				default_transaction_item_attributes.merge!( Etl.extract_attributes_from_model( order, Etl.DENORMALIZED_ORDER_ATTRIBUTES ) )
+				default_transaction_item_attributes.merge!( EcomEtl.extract_attributes_from_model( order, EcomEtl.DENORMALIZED_ORDER_ATTRIBUTES ) )
 
 				# Create new refund transaction items
 				transaction_items_attributes.each do |transaction_item_attributes|
@@ -285,8 +285,8 @@ module Aristotle
 
 			order = self.extract_order_from_src_order( src_order, data_src )
 
-			denormalized_order_attributes 	= Etl.extract_attributes_from_model( order, Etl.DENORMALIZED_ORDER_ATTRIBUTES )
-			order_state_attributes 			= Etl.extract_attributes_from_model( order, Etl.STATE_ATTRIBUTES )
+			denormalized_order_attributes 	= EcomEtl.extract_attributes_from_model( order, EcomEtl.DENORMALIZED_ORDER_ATTRIBUTES )
+			order_state_attributes 			= EcomEtl.extract_attributes_from_model( order, EcomEtl.STATE_ATTRIBUTES )
 
 			default_attributes = { data_src: data_src, src_transaction_id: order.src_order_id }
 			default_attributes = default_attributes.merge( denormalized_order_attributes )
@@ -341,8 +341,8 @@ module Aristotle
 
 			order = self.extract_order_from_src_order( src_order, data_src )
 
-			denormalized_order_attributes 	= Etl.extract_attributes_from_model( order, Etl.DENORMALIZED_ORDER_ATTRIBUTES - [:channel_partner] )
-			order_state_attributes 			= Etl.extract_attributes_from_model( order, Etl.STATE_ATTRIBUTES )
+			denormalized_order_attributes 	= EcomEtl.extract_attributes_from_model( order, EcomEtl.DENORMALIZED_ORDER_ATTRIBUTES - [:channel_partner] )
+			order_state_attributes 			= EcomEtl.extract_attributes_from_model( order, EcomEtl.STATE_ATTRIBUTES )
 
 			default_attributes = denormalized_order_attributes.merge( order_state_attributes )
 
@@ -390,7 +390,7 @@ module Aristotle
 					#puts JSON.pretty_generate transaction_item_attributes
 
 					transaction_item_attributes = transaction_item_attributes.select do |attribute_name, attribute_value|
-						attribute_value.present? && not( Etl.NUMERIC_ATTRIBUTES.include?( attribute_name.to_sym ) )
+						attribute_value.present? && not( EcomEtl.NUMERIC_ATTRIBUTES.include?( attribute_name.to_sym ) )
 					end
 
 					#puts JSON.pretty_generate transaction_item_attributes
@@ -522,8 +522,8 @@ module Aristotle
 			# puts "transaction_item_attributes before corrections"
 			# puts JSON.pretty_generate transaction_item_attributes
 
-			Etl.NUMERIC_ATTRIBUTES.each do |attribute_name|
-				if Etl.AGGREGATE_TOTAL_NUMERIC_ATTRIBUTES.include?(attribute_name)
+			EcomEtl.NUMERIC_ATTRIBUTES.each do |attribute_name|
+				if EcomEtl.AGGREGATE_TOTAL_NUMERIC_ATTRIBUTES.include?(attribute_name)
 					calculated_total += transaction_item_attributes[attribute_name]
 				end
 			end
@@ -551,8 +551,8 @@ module Aristotle
 			end
 
 			# Recalculate
-			transaction_item_attributes[:total_discount] 	= Etl.sum_key_values( transaction_item_attributes, Etl.AGGREGATE_TOTAL_DISCOUNT_NUMERIC_ATTRIBUTES )
-			transaction_item_attributes[:sub_total] 		= Etl.sum_key_values( transaction_item_attributes, Etl.AGGREGATE_SUB_TOTAL_NUMERIC_ATTRIBUTES )
+			transaction_item_attributes[:total_discount] 	= EcomEtl.sum_key_values( transaction_item_attributes, EcomEtl.AGGREGATE_TOTAL_DISCOUNT_NUMERIC_ATTRIBUTES )
+			transaction_item_attributes[:sub_total] 		= EcomEtl.sum_key_values( transaction_item_attributes, EcomEtl.AGGREGATE_SUB_TOTAL_NUMERIC_ATTRIBUTES )
 
 
 			# if total_delta != 0
@@ -611,7 +611,7 @@ module Aristotle
 
 			distributed_aggregate_adjustments = line_items.collect{|line_item| {} }
 			aggregate_adjustments.each do |attribute_name, attribute_value|
-				Etl.distribute_ratios( attribute_value, ratios ).each_with_index do |value, index|
+				EcomEtl.distribute_ratios( attribute_value, ratios ).each_with_index do |value, index|
 
 					distributed_aggregate_adjustments[index][attribute_name.to_sym] = value
 				end
@@ -626,14 +626,14 @@ module Aristotle
 
 
 				line_item_numerics = {}
-				Etl.NUMERIC_ATTRIBUTES.each do |numeric_attribute_name|
+				EcomEtl.NUMERIC_ATTRIBUTES.each do |numeric_attribute_name|
 					line_item_numerics[numeric_attribute_name] = (line_item[numeric_attribute_name] || 0) + ( line_item_adjustments[numeric_attribute_name] || 0 )
 				end
 
 				# distributed values
 				distributed_numerics = {}
 				line_item_numerics.each do |attribute_name,attribute_value|
-					distributed_numerics[attribute_name] = Etl.distribute_quantities( attribute_value, quantity )
+					distributed_numerics[attribute_name] = EcomEtl.distribute_quantities( attribute_value, quantity )
 				end
 
 
@@ -649,7 +649,7 @@ module Aristotle
 						currency:			order_transaction_item.currency,
 					}
 
-					Etl.NUMERIC_ATTRIBUTES.each do |attribute_name|
+					EcomEtl.NUMERIC_ATTRIBUTES.each do |attribute_name|
 						transaction_item_attributes[attribute_name] = distributed_numerics[attribute_name][index]
 					end
 
@@ -683,7 +683,7 @@ module Aristotle
 
 			distributed_attributes = {}
 			args.each do |attribute_name, attribute_value|
-				distributed_attributes[attribute_name] = Etl.distribute_ratios( attribute_value, ratios_of_totals )
+				distributed_attributes[attribute_name] = EcomEtl.distribute_ratios( attribute_value, ratios_of_totals )
 			end
 
 			order_transaction_items.each_with_index do |order_transaction_item, index|
@@ -699,7 +699,7 @@ module Aristotle
 				}
 
 
-				Etl.NUMERIC_ATTRIBUTES.each do |attribute_name|
+				EcomEtl.NUMERIC_ATTRIBUTES.each do |attribute_name|
 
 
 					if distributed_attributes[attribute_name].present?
