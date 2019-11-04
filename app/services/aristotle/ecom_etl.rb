@@ -564,6 +564,38 @@ module Aristotle
 			transaction_item_attributes
 		end
 
+		def find_or_create_offer( data_src, src_product_id, sku, offer_type )
+
+			product_aliases = ProductAlias.where( data_src: @data_src, src_product_id: src_product_id ).first if src_product_id
+			product_aliases ||= ProductAlias.where( data_src: @data_src, sku: sku ).first if sku
+			product_aliases ||= ProductAlias.create( data_src: @data_src, src_product_id: src_product_id, sku: sku )
+
+			if product_aliases.errors.present?
+				Rails.logger.info product_aliases.attributes.to_s
+				raise Exception.new( product_aliases.errors.full_messages )
+			elsif product_aliases.product.blank?
+				raise Exception.new( "No Product for Alias \##{product_aliases.id}. product_id: #{src_product_id}, SKU: #{sku}" )
+			end
+
+
+			offer = Offer.where( product: product_aliases.product, offer_type: Offer.offer_types[offer_type] ).first
+			offer ||= Offer.create(
+				name: "#{product_aliases.product.name}#{( offer_type == 'subscription' ? ' Subscription' : '' )}",
+				sku: "#{product_aliases.product.sku}#{( offer_type == 'subscription' ? '.subscription' : '' )}",
+				data_src: @data_src,
+				product: product_aliases.product,
+				offer_type: offer_type,
+			)
+
+			if offer.errors.present?
+				Rails.logger.info offer.attributes.to_s
+				raise Exception.new( offer.errors.full_messages )
+			end
+
+			offer
+
+		end
+
 		def transform_full_refund_into_transaction_items_attributes( src_refund, order_transaction_items )
 			transaction_items_attributes = []
 

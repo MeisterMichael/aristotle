@@ -1,22 +1,6 @@
 module Aristotle
 	class AmazonEtl < EcomEtl
 
-		PRODUCT_SKU_MAP = {
-			"Qualia Combo" => "Qualia.M1",
-			"Qualia Combo FBA" => "Qualia.M1",
-			"Qualia Combo CAN FBA" => "Qualia.M1",
-			"Qualia.Focus.100capsule.MonthSupply" => "Qualia.Focus", # "Qualia.Focus.100capsules",
-			"Qualia.Mind" => "Qualia.Mind",
-			"Qualia.Mind.AMZ" => "Qualia.Mind",
-			"Qualia.Mind.AMZ.FBA" => "Qualia.Mind",
-			"Qualia.Mind.AMZ-CA.FBA" => "Qualia.Mind",
-			"Qualia.Mind.105capsule.EU" => "Qualia.Mind",
-			"Qualia.Mind.105capsule" => "Qualia.Mind.105capsule",
-			"Qualia.Mind.35capsule" => "Qualia.Mind.35capsule.WeekSupply", # "Qualia.Mind.35capsule",
-			"Qualia.Mind.Caffeine.Free" => "Qualia.Mind.Caffeine.Free", # "Qualia.Mind.154capsule.caffeinefree",
-			"Eternus.160.FBA" => "Eternus.160capsule",
-		}
-
 		AMAZON_EPOCH = '2017-07-15T00:00:00-08:00'
 
 		UNITED_STATES_MARKETPLACE_ID = 'ATVPDKIKX0DER' # US
@@ -388,41 +372,7 @@ module Aristotle
 			offer_type = 'default'
 			# offer_type = 'subscription'
 
-			puts "amazon_order_item['SellerSKU'] #{amazon_order_item['SellerSKU']} => #{PRODUCT_SKU_MAP[ amazon_order_item['SellerSKU'] ]}"
-
-			product = Product.where( sku: PRODUCT_SKU_MAP[ amazon_order_item['SellerSKU'] ] ).first if PRODUCT_SKU_MAP[ amazon_order_item['SellerSKU'] ].present?
-			product ||= Product.where( data_src: @data_src, src_product_id: amazon_order_item['ASIN'] ).first
-			product ||= Product.create(
-				data_src: @data_src,
-				name: amazon_order_item['Title'],
-				sku: amazon_order_item['SellerSKU'],
-				src_product_id: amazon_order_item['ASIN'].to_s,
-				description: nil,
-				# status: product_status,
-			)
-
-			if product.errors.present?
-				Rails.logger.info product.attributes.to_s
-				raise Exception.new( product.errors.full_messages )
-			end
-
-			offer = Offer.where( product: product, offer_type: Offer.offer_types[offer_type] ).first
-
-			offer ||= Offer.create(
-				data_src: @data_src,
-				product: product,
-				name: "#{product.name}#{( offer_type == 'subscription' ? ' Subscription' : '' )}",
-				sku: "#{product.sku}#{( offer_type == 'subscription' ? '.subscription' : '' )}",
-				offer_type: offer_type,
-			)
-
-			if offer.errors.present?
-				Rails.logger.info offer.attributes.to_s
-				raise Exception.new( offer.errors.full_messages )
-			end
-
-			offer
-
+			offer = find_or_create_offer( @data_src, amazon_order_item['ASIN'].to_s, amazon_order_item['SellerSKU'], offer_type )
 		end
 
 

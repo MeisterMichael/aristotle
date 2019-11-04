@@ -248,6 +248,19 @@ module Aristotle
 				transaction[:status] = transaction[:status].to_i
 			end
 
+			src_order[:order_offers] = exec_query("SELECT * FROM bazaar_order_offers WHERE order_id = #{src_order[:id]}").to_a.collect(&:symbolize_keys)
+			src_order[:order_offers].each do |order_offer|
+
+				order_offer[:quantity]							= order_offer[:quantity].to_i
+				order_offer[:price]									= order_offer[:price].to_i
+				order_offer[:subtotal]							= order_offer[:subtotal].to_i
+				order_offer[:subscription_interval]	= order_offer[:subscription_interval].to_i
+
+				order_item[:subscription] ||= extract_item( 'Bazaar::Subscription', order_item[:subscription_id] )
+				order_item[:offer] = extract_item( 'Bazaar::Offer', order_item[:offer_id] )
+
+			end
+
 			src_order[:order_items] = exec_query("SELECT * FROM bazaar_order_items WHERE order_id = #{src_order[:id]}").to_a.collect(&:symbolize_keys)
 			src_order[:order_items].each do |order_item|
 
@@ -257,6 +270,7 @@ module Aristotle
 
 				order_item[:subscription] ||= extract_item( 'Bazaar::Subscription', order_item[:subscription_id] )
 				order_item[:item] ||= extract_item( order_item[:item_type], order_item[:item_id] )
+				order_item[:offer] = order_item[:item][:offer] if order_item[:item]
 				order_item[:subscription] ||= order_item[:item] if order_item[:item_type] == 'Bazaar::Subscription'
 
 			end
@@ -447,14 +461,26 @@ module Aristotle
 
 				item[:subscription_plan] = extract_item( 'Bazaar::SubscriptionPlan', item[:subscription_plan_id] )
 
+			elsif item_type == 'Bazaar::Offer'
+
+				item = exec_query("SELECT * FROM bazaar_offers WHERE id = #{item_id}").first.symbolize_keys
+				item[:offer_prices] = exec_query("SELECT * FROM bazaar_offer_prices WHERE parent_obj_type = 'Bazaar::Offer' AND parent_obj_id = #{item[:id]}").to_a.collect(&:symbolize_keys)
+				item[:offer_skus] = exec_query("SELECT * FROM bazaar_offer_skus WHERE parent_obj_type = 'Bazaar::Offer' AND parent_obj_id = #{item[:id]}").to_a.collect(&:symbolize_keys)
+				item[:offer_schedules] = exec_query("SELECT * FROM bazaar_offer_schedules WHERE parent_obj_type = 'Bazaar::Offer' AND parent_obj_id = #{item[:id]}").to_a.collect(&:symbolize_keys)
+
+				sum_max_intervals = exec_query("SELECT COALESCE(max_intervals,99) FROM bazaar_offer_schedules WHERE status = 1 AND parent_obj_type = 'Bazaar::Offer' AND parent_obj_id = #{item[:id]}").first.first.last.to_i
+				item[:recurring] =  sum_max_intervals > 1
+
 			elsif item_type == 'Bazaar::Product'
 
 				item = exec_query("SELECT * FROM bazaar_products WHERE id = #{item_id}").first.symbolize_keys
+				item[:offer] = extract_item( "Bazaar::Offer", item[:offer_id] )
 
 			elsif item_type == 'Bazaar::SubscriptionPlan'
 
 				item = exec_query("SELECT * FROM bazaar_subscription_plans WHERE id = #{item_id}").first.symbolize_keys
 				item[:item] = extract_item( item[:item_type], item[:item_id] )
+				item[:offer] = extract_item( "Bazaar::Offer", item[:offer_id] )
 
 			elsif item_type == 'Bazaar::Discount'
 
@@ -677,7 +703,7 @@ module Aristotle
 			refersion_properties = self.get_order_refersion_properties( src_order )
 			payment_type = self.get_order_payment_type( src_order )
 
-			transaction_items_attributes = self.transform_order_items_to_transaction_items_attributes( src_order[:order_items], commission_total: ( refersion_properties[:commission_total] || 0 ) )
+			transaction_items_attributes = self.transform_order_items_to_transaction_items_attributes( src_order[:order_items], src_order[:order_offers], commission_total: ( refersion_properties[:commission_total] || 0 ) )
 
 			transaction_items_attributes.each do |transaction_item_attributes|
 				transaction_item_attributes[:transaction_type]	= 'charge'
@@ -774,7 +800,7 @@ module Aristotle
 		def transform_line_item_to_offer( prod_order_item )
 
 			offer_type = 'default'
-			offer_type = 'subscription' if prod_order_item[:item_type].include?( 'SubscriptionPlan' )
+			offer_type = 'subscription' if ( prod_order_item[:offer] && prod_order_item[:offer][:recurring] ) || prod_order_item[:item_type].include?( 'SubscriptionPlan' )
 
 			if prod_order_item[:item_type] == 'Bazaar::Subscription'
 
@@ -808,48 +834,11 @@ module Aristotle
 			sku ||= product_item[:sku] if product_item.present?
 
 
-			if ['Qualia.sub.b','Qualia.sub','Qualia.single','Qualia Combo'].include? sku
+			offer = find_or_create_offer( @data_src, src_product_id, sku, offer_type )
 
-				product = Product.where( sku: 'Qualia.M1' ).first
-				offer = Offer.where( product: product, offer_type: Offer.offer_types[offer_type] ).first
-
-			else
-
-				product ||= Product.where( data_src: @data_src, src_product_id: src_product_id ).first
-				product ||= Product.create(
-					name: prod_order_item[:title],
-					data_src: @data_src,
-					src_product_id: src_product_id,
-					sku: sku,
-					description: nil,
-					# status: product_status,
-				)
-
-				if product.errors.present?
-					Rails.logger.info product.attributes.to_s
-					raise Exception.new( product.errors.full_messages )
-				end
-
-				offer = Offer.where( product: product, offer_type: Offer.offer_types[offer_type] ).first
-				offer ||= Offer.create(
-					name: "#{product.name}#{( offer_type == 'subscription' ? ' Subscription' : '' )}",
-					sku: "#{product.sku}#{( offer_type == 'subscription' ? '.subscription' : '' )}",
-					data_src: @data_src,
-					product: product,
-					offer_type: offer_type,
-				)
-
-				if offer.errors.present?
-					Rails.logger.info offer.attributes.to_s
-					raise Exception.new( offer.errors.full_messages )
-				end
-
-			end
-
-			offer
 		end
 
-		def transform_order_items_to_transaction_items_attributes( order_items, args = {} )
+		def transform_order_items_to_transaction_items_attributes( order_items, order_offers, args = {} )
 			transaction_items_attributes = []
 
 			prod_order_items = order_items.select{ |order_item| order_item[:order_item_type].to_i == ORDER_ITEM_TYPE_PROD }
@@ -864,14 +853,14 @@ module Aristotle
 			commission_total = (args[:commission_total] || 0).to_i
 
 
-			prod_order_items.each do |order_item|
-				quantity 	= order_item[:quantity].to_i
-				offer 		= transform_line_item_to_offer( order_item )
+			order_offers.each do |order_offer|
+				quantity 	= order_offer[:quantity].to_i
+				offer 		= transform_line_item_to_offer( order_offer )
 
-				src_subscription = order_item[:subscription] if order_item[:subscription].present?
-				src_subscription = order_item[:item] if order_item[:item_type] == 'Bazaar::Subscription'
-				if src_subscription.present?
+				if order_offer[:subscription].present?
+					src_subscription = order_offer[:subscription]
 					src_subscription_id = src_subscription[:src_subscription_id]
+					
 					subscription_attributes = src_subscription.merge(
 						subscription_id: src_subscription_id,
 						src_subscription_id: src_subscription_id,
@@ -879,13 +868,13 @@ module Aristotle
 					)
 				end
 
-				distributed_prices = Array.new(quantity) { |i| order_item[:price].to_i }
+				distributed_prices = Array.new(quantity) { |i| order_offer[:price].to_i }
 
 				(0..quantity-1).each do |i|
 					amount 		= distributed_prices[i]
 
 					transaction_item_attributes = {
-						src_line_item_id: order_item[:id].to_s,
+						src_line_item_id: order_offer[:id].to_s,
 						offer: offer,
 						product: offer.product,
 						src_subscription_id: src_subscription_id.to_s,

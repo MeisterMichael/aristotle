@@ -1,24 +1,11 @@
 module Aristotle
 	class ShopifyEtl < EcomEtl
-		SHOPIFY_STORE = "#{ENV['SHOPIFY_NAME']}.myshopify.com"
-		SHOPIFY_EPOCH = '2017-06-13T00:00:00-08:00'
-		RECHARGE_SOURCE_NAME = '294517'
-
-		def self.DATA_SRC()
-			SHOPIFY_STORE
-		end
-
-		def self.shopify_store_name
-			SHOPIFY_STORE
-		end
-
-		def self.shopify_epoch
-			SHOPIFY_EPOCH
-		end
 
 		def initialize( args = {} )
 
-			@shop_url = args[:shop_url] || "https://#{ENV['SHOPIFY_API_KEY']}:#{ENV['SHOPIFY_PASSWORD']}@#{ENV['SHOPIFY_NAME']}.myshopify.com/admin"
+			@shop_url	= args[:shop_url]	|| "https://#{ENV['SHOPIFY_API_KEY']}:#{ENV['SHOPIFY_PASSWORD']}@#{ENV['SHOPIFY_NAME']}.myshopify.com/admin"
+			@data_src	= args[:data_src]	|| "Shopify"
+			@epoch		= args[:epoch]		|| '2017-06-13T00:00:00-08:00'
 
 		end
 
@@ -44,8 +31,8 @@ module Aristotle
 
 			default_params = {
 				limit: 50,
-				processed_at_min: SHOPIFY_EPOCH,
-				created_at_min: SHOPIFY_EPOCH,
+				processed_at_min: @epoch,
+				created_at_min: @epoch,
 				status: 'any',
 				financial_status: 'any',
 				fulfillment_status: 'any'
@@ -185,8 +172,8 @@ module Aristotle
 
 			default_params = {
 				limit: 50,
-				processed_at_min: SHOPIFY_EPOCH,
-				created_at_min: SHOPIFY_EPOCH,
+				processed_at_min: @epoch,
+				created_at_min: @epoch,
 				status: 'any',
 				financial_status: 'any',
 				fulfillment_status: 'any'
@@ -202,7 +189,7 @@ module Aristotle
 
 					shopify_order_properties = JSON.parse( shopify_order.to_json, :symbolize_names => true )
 
-					process_order( shopify_order_properties, SHOPIFY_STORE, 'pull' )
+					process_order( shopify_order_properties, @data_src, 'pull' )
 
 				end
 				puts "Completed Page #{page}"
@@ -242,8 +229,8 @@ module Aristotle
 
 			default_params = {
 				limit: 50,
-				processed_at_min: SHOPIFY_EPOCH,
-				created_at_min: SHOPIFY_EPOCH,
+				processed_at_min: @epoch,
+				created_at_min: @epoch,
 				status: 'any',
 				financial_status: 'any',
 				fulfillment_status: 'any'
@@ -346,7 +333,7 @@ module Aristotle
 			full_name = "#{refersion_properties['first_name']} #{refersion_properties['last_name']}".strip
 
 			channel_partner ||= ChannelPartner.create(
-				data_src: SHOPIFY_STORE,
+				data_src: @data_src,
 				name: full_name,
 				src_channel_partner_id: refersion_properties['id'],
 				refersion_channel_partner_id: refersion_properties['id'],
@@ -382,7 +369,7 @@ module Aristotle
 				end
 
 				coupon_use = CouponUse.where(
-					data_src: SHOPIFY_STORE,
+					data_src: @data_src,
 					src_order_id: order.src_order_id,
 					src_transaction_id: order.src_order_id,
 					coupon: coupon,
@@ -429,7 +416,7 @@ module Aristotle
 			# location = args[:location] || load_order_location( order_data )
 
 			customer ||= Aristotle::Customer.create(
-				data_src: SHOPIFY_STORE,
+				data_src: @data_src,
 				src_customer_id: shopify_customer[:id],
 				shopify_customer_id: shopify_customer[:id],
 				name: "#{shopify_customer[:first_name]} #{shopify_customer[:last_name]}".strip,
@@ -503,7 +490,7 @@ module Aristotle
 			location = Location.where( zip: shipping_address[:zip] ).first
 
 			location ||= Location.create(
-				data_src: SHOPIFY_STORE,
+				data_src: @data_src,
 				city: shipping_address[:city],
 				state_code: shipping_address[:province_code],
 				zip: shipping_address[:zip],
@@ -520,7 +507,7 @@ module Aristotle
 		end
 
 		def extract_order_from_src_refund( shopify_refund )
-			order = Order.where( data_src: SHOPIFY_STORE, src_order_id: shopify_refund[:order_id] ).first
+			order = Order.where( data_src: @data_src, src_order_id: shopify_refund[:order_id] ).first
 
 			order
 		end
@@ -647,11 +634,11 @@ module Aristotle
 
 				src_subscription_id = subscription_attributes[:src_subscription_id]
 
-				used_subscription_ids = TransactionItem.where( data_src: SHOPIFY_STORE, src_subscription_id: src_subscription_id, src_transaction_id: transaction_item.src_transaction_id ).where.not( subscription_id: nil ).select('subscription_id')
+				used_subscription_ids = TransactionItem.where( data_src: @data_src, src_subscription_id: src_subscription_id, src_transaction_id: transaction_item.src_transaction_id ).where.not( subscription_id: nil ).select('subscription_id')
 				subscription = Subscription.where( recharge_subscription_id: src_subscription_id ).where.not( id: used_subscription_ids ).first
 
 				subscription ||= Subscription.create(
-					data_src: SHOPIFY_STORE,
+					data_src: @data_src,
 					customer: transaction_item.customer,
 					location: transaction_item.location,
 					transaction_item: transaction_item,
@@ -751,8 +738,6 @@ module Aristotle
 				payment_type = 'paypal'
 			elsif shopify_order[:payment_details].present? && shopify_order[:payment_details][:credit_card_company].present?
 				payment_type = 'credit_card'
-			elsif shopify_order[:source_name] == RECHARGE_SOURCE_NAME
-				payment_type = 'credit_card'
 			else
 				puts "Shopify Order \##{shopify_order[:id]}: Unable to find payment type! shopify_order[:gateway] #{shopify_order[:gateway]}"
 			end
@@ -813,41 +798,7 @@ module Aristotle
 			offer_type = 'default'
 			offer_type = 'subscription' if properties[:subscription_first_order]
 
-			if [11128592847,11128592655,11624988751].include?( line_item_data[:product_id] )
-				product = Product.where( sku: 'Qualia.M1' ).first
-			end
-
-			product ||= Product.where( src_product_id: line_item_data[:product_id].to_s ).first
-			product ||= Product.create(
-				data_src: SHOPIFY_STORE,
-				name: line_item_data[:title],
-				sku: line_item_data[:sku],
-				src_product_id: line_item_data[:product_id].to_s,
-				description: nil,
-				# status: product_status,
-			)
-
-			if product.errors.present?
-				Rails.logger.info product.attributes.to_s
-				raise Exception.new( product.errors.full_messages )
-			end
-
-			offer = Offer.where( product: product, offer_type: Offer.offer_types[offer_type] ).first
-
-			offer ||= Offer.create(
-				data_src: SHOPIFY_STORE,
-				product: product,
-				name: "#{product.name}#{( offer_type == 'subscription' ? ' Subscription' : '' )}",
-				sku: "#{product.sku}#{( offer_type == 'subscription' ? '.subscription' : '' )}",
-				offer_type: offer_type,
-			)
-
-			if offer.errors.present?
-				Rails.logger.info offer.attributes.to_s
-				raise Exception.new( offer.errors.full_messages )
-			end
-
-			offer
+			offer = find_or_create_offer( @data_src, line_item_data[:product_id].to_s, line_item_data[:sku], offer_type )
 		end
 
 		def transform_line_item_properties_to_hash( line_item_data )

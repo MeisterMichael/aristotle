@@ -290,6 +290,15 @@ class AristotleMigration < ActiveRecord::Migration[5.1]
 			t.index ["wholesale_client_id"], name: "index_orders_on_wholesale_client_id"
 		end
 
+		create_table "aristotle_product_aliases", id: :serial, force: :cascade do |t|
+			t.bigint "product_id"
+			t.string "src_product_id"
+			t.string "sku"
+			t.datetime "created_at"
+			t.datetime "updated_at"
+			t.string "data_src", default: nil
+		end
+
 		create_table "aristotle_products", id: :serial, force: :cascade do |t|
 			t.string "name"
 			t.string "sku"
