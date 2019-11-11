@@ -257,6 +257,7 @@ class AristotleMigration < ActiveRecord::Migration[5.1]
 			t.string "description"
 			t.integer "status"
 			t.integer "offer_type", default: 0
+			t.string "src_offer_id"
 			t.datetime "created_at"
 			t.datetime "updated_at"
 			t.string "data_src", default: nil
@@ -288,15 +289,6 @@ class AristotleMigration < ActiveRecord::Migration[5.1]
 			t.bigint "wholesale_client_id"
 			t.index ["src_order_label", "data_src"], name: "index_orders_on_src_order_label_and_data_src"
 			t.index ["wholesale_client_id"], name: "index_orders_on_wholesale_client_id"
-		end
-
-		create_table "aristotle_product_aliases", id: :serial, force: :cascade do |t|
-			t.bigint "product_id"
-			t.string "src_product_id"
-			t.string "sku"
-			t.datetime "created_at"
-			t.datetime "updated_at"
-			t.string "data_src", default: nil
 		end
 
 		create_table "aristotle_products", id: :serial, force: :cascade do |t|
