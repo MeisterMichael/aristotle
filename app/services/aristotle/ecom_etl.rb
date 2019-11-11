@@ -564,29 +564,34 @@ module Aristotle
 			transaction_item_attributes
 		end
 
-		def find_or_create_offer( data_src, src_product_id, sku, offer_type )
+		def find_or_create_offer( data_src, options = {} )
+			product_attributes	= options[:product_attributes] || {}
+			product_attributes[:data_src] ||= data_src
 
-			product_aliases = ProductAlias.where( data_src: @data_src, src_product_id: src_product_id ).first if src_product_id
-			product_aliases ||= ProductAlias.where( data_src: @data_src, sku: sku ).first if sku
-			product_aliases ||= ProductAlias.create( data_src: @data_src, src_product_id: src_product_id, sku: sku )
-
-			if product_aliases.errors.present?
-				Rails.logger.info product_aliases.attributes.to_s
-				raise Exception.new( product_aliases.errors.full_messages )
-			elsif product_aliases.product.blank?
-				raise Exception.new( "No Product for Alias \##{product_aliases.id}. product_id: #{src_product_id}, SKU: #{sku}" )
-			end
+			offer_attributes		= options[:offer_attributes] || {}
+			offer_attributes[:data_src] ||= data_src
 
 
-			offer = Offer.where( product: product_aliases.product, offer_type: Offer.offer_types[offer_type] ).first
-			offer ||= Offer.create(
-				name: "#{product_aliases.product.name}#{( offer_type == 'subscription' ? ' Subscription' : '' )}",
-				sku: "#{product_aliases.product.sku}#{( offer_type == 'subscription' ? '.subscription' : '' )}",
-				data_src: @data_src,
-				product: product_aliases.product,
-				offer_type: offer_type,
-			)
+			raise Exception.new( "src_offer_id is blank for #{options.to_json}" ) if offer_attributes[:src_offer_id].blank?
+			raise Exception.new( "src_product_id is blank for #{options.to_json}" ) if product_attributes[:src_product_id].blank?
 
+
+			# Find offer by data_src and src_offer_id, or create with offer attributes
+			offer = Offer.where(
+				data_src: data_src,
+				src_offer_id: offer_attributes[:src_offer_id]
+			).create_with(
+				offer_attributes.merge( offer_type: Offer.offer_types[ offer_attributes[:offer_type] ] )
+			).first_or_create
+
+			offer.product ||= Product.where(
+				data_src: data_src,
+				src_product_id: product_attributes[:src_product_id]
+			).first
+			offer.product ||= Product.create( product_attributes )
+			offer.save
+
+			# raise any fatal errors
 			if offer.errors.present?
 				Rails.logger.info offer.attributes.to_s
 				raise Exception.new( offer.errors.full_messages )

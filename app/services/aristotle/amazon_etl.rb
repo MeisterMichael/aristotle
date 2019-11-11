@@ -372,7 +372,20 @@ module Aristotle
 			offer_type = 'default'
 			# offer_type = 'subscription'
 
-			offer = find_or_create_offer( @data_src, amazon_order_item['ASIN'].to_s, amazon_order_item['SellerSKU'], offer_type )
+			offer = find_or_create_offer(
+				@data_src,
+				product_attributes: {
+					src_product_id: amazon_order_item['SellerSKU'].to_s,
+					sku: amazon_order_item['ASIN'].to_s,
+					name: amazon_order_item['Title']
+				},
+				offer_attributes: {
+					src_offer_id: amazon_order_item['SellerSKU'].to_s,
+					sku: amazon_order_item['ASIN'].to_s,
+					name: amazon_order_item['Title'],
+					offer_type: offer_type,
+				},
+			)
 		end
 
 

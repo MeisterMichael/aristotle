@@ -798,7 +798,22 @@ module Aristotle
 			offer_type = 'default'
 			offer_type = 'subscription' if properties[:subscription_first_order]
 
-			offer = find_or_create_offer( @data_src, line_item_data[:product_id].to_s, line_item_data[:sku], offer_type )
+
+
+			offer = find_or_create_offer(
+				@data_src,
+				product_attributes: {
+					src_product_id: line_item_data[:product_id].to_s,
+					sku: line_item_data[:sku],
+					name: line_item_data[:title],
+				},
+				offer_attributes: {
+					offer_type: offer_type,
+					src_offer_id: line_item_data[:product_id].to_s,
+					sku: line_item_data[:sku],
+					name: line_item_data[:title],
+				}
+			)
 		end
 
 		def transform_line_item_properties_to_hash( line_item_data )
