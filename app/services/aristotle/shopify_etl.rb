@@ -3,6 +3,9 @@ module Aristotle
 
 		def initialize( args = {} )
 
+			@source_identifier_whitelist = args[:source_identifier_whitelist] || ( ENV['SHOPIFY_SOURCE_IDENTIFIER_WHITELIST'] || '' ).split(',').collect(&:strip)
+			@source_name_whitelist = args[:source_name_whitelist] || ( ENV['SHOPIFY_SOURCE_NAME_WHITELIST'] || 'web' ).split(',').collect(&:strip)
+
 			@shop_url	= args[:shop_url]	|| "https://#{ENV['SHOPIFY_API_KEY']}:#{ENV['SHOPIFY_PASSWORD']}@#{ENV['SHOPIFY_NAME']}.myshopify.com/admin"
 			@data_src	= args[:data_src]	|| "Shopify"
 			@epoch		= args[:epoch]		|| '2017-06-13T00:00:00-08:00'
@@ -184,12 +187,18 @@ module Aristotle
 				puts "Processing Page #{page} (count #{shopify_orders.count})"
 				shopify_orders.each do |shopify_order|
 
-					# skip imported orders (from importer source)
-					next if shopify_order.source_name == '1753159' #litextension
 
-					shopify_order_properties = JSON.parse( shopify_order.to_json, :symbolize_names => true )
+					if @source_identifier_whitelist.include?( shopify_order.source_identifier ) || @source_name_whitelist.include?( shopify_order.source_name )
 
-					process_order( shopify_order_properties, @data_src, 'pull' )
+						shopify_order_properties = JSON.parse( shopify_order.to_json, :symbolize_names => true )
+
+						process_order( shopify_order_properties, @data_src, 'pull' )
+
+					else
+
+						puts "non-whitelisted source #{shopify_order.source_name} / #{shopify_order.source_identifier}"
+
+					end
 
 				end
 				puts "Completed Page #{page}"
@@ -204,6 +213,7 @@ module Aristotle
 		end
 
 		def pull_shopify_orders_by_number( order_number )
+			# puts "debug pull_shopify_orders_by_number"
 			page_size = 50
 
 			latest_shopify_orders = ShopifyEtl.new.pull_shopify_orders( params: { limit: page_size, page: 1 } )
@@ -225,6 +235,7 @@ module Aristotle
 		end
 
 		def pull_shopify_orders( args = {} )
+			# puts "debug pull_shopify_orders"
 			use_shopify_api
 
 			default_params = {
@@ -257,6 +268,8 @@ module Aristotle
 
 			tags = get_order_tags( shopify_order )
 
+			shopify_order[:customer] ||= { id: 'anonymous', email: 'anonymous', first_name: 'anonymous', last_name: 'anonymous' }
+
 			if tags.include?('Subscription')
 
 				recharge_order = RechargeEtl.new.get_recharge_order( shopify_order[:id] )
@@ -267,6 +280,10 @@ module Aristotle
 					recharge_line_item = recharge_order[:line_items].find do |a_recharge_line_item|
 						a_recharge_line_item[:shopify_product_id] == shopify_line_item[:product_id].to_s && a_recharge_line_item[:shopify_variant_id] == shopify_line_item[:variant_id].to_s
 					end
+
+					amazon_order_item_id_property = shopify_line_item[:properties].find_by{ |property| property[:name] == 'Amazon Order Item ID' }
+					amazon_order_item_id_property[:amazon_order_item_id] = amazon_order_item_id_property[:value] if amazon_order_item_id_property
+
 
 					raise Exception.new( "Unable to find subscription corresponding with shopify line item Shopify Order\##{shopify_order[:id]} / ReCharge Order\##{recharge_order[:id]}" ) if recharge_line_item.nil?
 
@@ -323,11 +340,11 @@ module Aristotle
 		end
 
 		def extract_channel_partner_from_src_order( shopify_order )
-
+			puts "extract_channel_partner_from_src_order"
 			refersion_properties = get_order_refersion_properties( shopify_order )
-
+			puts "extract_channel_partner_from_src_order 1"
 			return nil if refersion_properties.blank? && refersion_properties['id'].blank?
-
+			puts "extract_channel_partner_from_src_order 2"
 			channel_partner = ChannelPartner.where( refersion_channel_partner_id: refersion_properties['id'] ).first
 
 			full_name = "#{refersion_properties['first_name']} #{refersion_properties['last_name']}".strip
@@ -349,7 +366,7 @@ module Aristotle
 				Rails.logger.info channel_partner.attributes.to_s
 				raise Exception.new( channel_partner.errors.full_messages )
 			end
-
+			puts "extract_channel_partner_from_src_order 5"
 			channel_partner
 		end
 
@@ -485,24 +502,30 @@ module Aristotle
 		end
 
 		def extract_location_from_src_order( shopify_order )
-			shipping_address = shopify_order[:shipping_address]
-
-			location = Location.where( zip: shipping_address[:zip] ).first
-
+			# puts "debug extract_location_from_src_order"
+			# puts "debug #{JSON.pretty_generate(shopify_order)}"
+			location_address = shopify_order[:shipping_address] || shopify_order[:billing_address]
+			if location_address.blank?
+				# puts "debug extract_location_from_src_order 0.1 nil"
+				return nil
+			end
+			# puts "debug extract_location_from_src_order 1 #{location_address.to_json}"
+			location = Location.where( zip: location_address[:zip] ).first
+			# puts "debug extract_location_from_src_order 2"
 			location ||= Location.create(
 				data_src: @data_src,
-				city: shipping_address[:city],
-				state_code: shipping_address[:province_code],
-				zip: shipping_address[:zip],
-				country_code: shipping_address[:country_code],
+				city: location_address[:city],
+				state_code: location_address[:province_code],
+				zip: location_address[:zip],
+				country_code: location_address[:country_code],
 			)
-
+			# puts "debug extract_location_from_src_order 3"
 
 			if location.errors.present?
 				Rails.logger.info location.attributes.to_s
 				raise Exception.new( location.errors.full_messages )
 			end
-
+			# puts "debug extract_location_from_src_order 5"
 			location
 		end
 
@@ -527,8 +550,14 @@ module Aristotle
 		end
 
 		def extract_state_attributes_from_order( shopify_order )
-			return shopify_order[:_state_attributes] if shopify_order[:_state_attributes].present?
+			# puts "debug extract_state_attributes_from_order"
+			# puts "debug #{JSON.pretty_generate(shopify_order)}"
+			# puts "debug extract_state_attributes_from_order 0.1"
+			if shopify_order[:_state_attributes].present?
+				return shopify_order[:_state_attributes]
+			end
 
+			# puts "debug extract_state_attributes_from_order 0.2"
 
 			# Extract timestamps ***************
 			transactions = shopify_order[:transactions] || []
@@ -545,6 +574,8 @@ module Aristotle
 
 			timestamps[:refunded_at] = refunds.first[:created_at] if refunds.present?
 
+			# puts "debug extract_state_attributes_from_order 1"
+
 			# if there are fulfillments, the completed at date is the latest one, if
 			# the order has been completly fulfilled, otherwise set the completed
 			# date to closed_at
@@ -559,6 +590,8 @@ module Aristotle
 
 			timestamps[:processing_at] 	= shopify_order[:processed_at]
 			timestamps[:transacted_at] 	= shopify_order[:processed_at]
+
+			puts "extract_state_attributes_from_order 2"
 
 			if transactions.present?
 
@@ -578,7 +611,7 @@ module Aristotle
 				timestamps[key] = Time.parse( time_string ).utc.strftime('%Y-%m-%d %H:%M:%S') if key.to_s.ends_with?('_at') && time_string.present?
 			end
 
-
+			# puts "debug extract_state_attributes_from_order 3"
 
 			# Extract current status ***************
 			financial_status = (shopify_order[:financial_status] || '').downcase
@@ -596,10 +629,12 @@ module Aristotle
 				status = 'pending'
 			end
 
-
+			# puts "debug extract_state_attributes_from_order 4"
 
 			# Merge results ***********************
 			state_attributes = timestamps.merge( status: status )
+
+			# puts "debug extract_state_attributes_from_order: #{state_attributes.to_json}"
 
 			shopify_order[:_state_attributes] = state_attributes
 		end
@@ -700,23 +735,28 @@ module Aristotle
 		end
 
 		def extract_transaction_items_attributes_from_src_order( shopify_order, args = {} )
+			# puts "debug extract_transaction_items_attributes_from_src_order"
 
 			state_attributes = self.extract_state_attributes_from_order( shopify_order )
+			# puts "debug extract_transaction_items_attributes_from_src_order 0.1"
 			refersion_properties = self.get_order_refersion_properties( shopify_order )
+			# puts "debug extract_transaction_items_attributes_from_src_order 1"
 			payment_type = self.get_order_payment_type( shopify_order )
+
+			# puts "debug extract_transaction_items_attributes_from_src_order 2"
 
 			shipping_cost_total = shopify_order[:shipping_lines].sum{|line| line[:price] }
 			shipping_tax_total 	= shopify_order[:shipping_lines].sum{|line| line[:tax] }
 			commission_total 	= (refersion_properties['commission'] || 0.0).to_f
 			discounts_total 	= shopify_order[:total_discounts]
-
+			# puts "debug extract_transaction_items_attributes_from_src_order 3"
 			transaction_items_attributes = self.transform_line_items_to_transaction_items_attributes( shopify_order[:line_items], src_customer_id: shopify_order[:customer][:id], shipping_cost_total: shipping_cost_total, shipping_tax_total: shipping_tax_total, commission_total: commission_total, discounts_total: discounts_total )
-
+			# puts "debug extract_transaction_items_attributes_from_src_order 4"
 			transaction_items_attributes.each do |transaction_item_attributes|
 				transaction_item_attributes[:transaction_type] ||= 'charge'
 				transaction_item_attributes[:payment_type] ||= payment_type
 			end
-
+			# puts "debug extract_transaction_items_attributes_from_src_order 5"
 			transaction_items_attributes
 
 		end
@@ -751,14 +791,18 @@ module Aristotle
 		# last_name
 		# id
 		def get_order_refersion_properties( shopify_order )
-			return shopify_order[:_refersion_properties] if shopify_order[:_refersion_properties].present?
+			# puts "debug get_order_refersion_properties"
+			if shopify_order[:_refersion_properties].present?
+				puts "return shopify_order[:_refersion_properties]  #{return shopify_order[:_refersion_properties].to_json}"
+				return shopify_order[:_refersion_properties]
+			end
 
 			tags = get_order_tags( shopify_order )
 
 			refersion_tags = tags.select{|tag| tag.start_with?('rfsn.affiliate.') }
 
 			refersion_properties = Hash[refersion_tags.collect{|tag| tag.gsub(/rfsn\.affiliate\.commission\.|rfsn\.affiliate\./,'').split(':').collect(&:strip)}]
-
+			# puts "debug get_order_refersion_properties #{refersion_properties.to_json}"
 			shopify_order[:_refersion_properties] = refersion_properties
 		end
 
@@ -792,13 +836,19 @@ module Aristotle
 
 
 		def transform_line_item_to_offer( line_item_data )
+			unless line_item_data[:product_id]
+				puts "Unable to find offer/product.  No product id provided. #{line_item_data.to_json}"
+				return nil
+			end
 
 			properties = transform_line_item_properties_to_hash( line_item_data )
 
 			offer_type = 'default'
 			offer_type = 'subscription' if properties[:subscription_first_order]
 
-
+			# puts "debug transform_line_item_to_offer"
+			# puts "debug #{JSON.pretty_generate(line_item_data)}"
+			# puts "debug #{JSON.pretty_generate(properties)}"
 
 			offer = find_or_create_offer(
 				@data_src,
@@ -828,12 +878,15 @@ module Aristotle
 		end
 
 		def transform_line_items_to_transaction_items_attributes( line_items, args = {} )
+			# puts "debug transform_line_items_to_transaction_items_attributes"
 			transaction_items_attributes = []
 
 			shipping_cost_total = ((args[:shipping_cost_total] || 0).to_f * 100).to_i
 			shipping_tax_total 	= ((args[:shipping_tax_total] || 0).to_f * 100).to_i
 			commission_total 	= ((args[:commission_total] || 0).to_f * 100).to_i
 			discounts_total 	= ((args[:discounts_total] || 0).to_f * 100).to_i
+
+			# puts "debug transform_line_items_to_transaction_items_attributes 1"
 
 			line_items.each do |line_item_data|
 				quantity 	= line_item_data[:quantity]
@@ -873,7 +926,7 @@ module Aristotle
 						src_line_item_id: line_item_data[:id].to_s,
 
 						offer: offer,
-						product: offer.product,
+						product: offer.try(:product),
 
 						src_subscription_id: properties[:subscription_id].to_s,
 
@@ -941,6 +994,8 @@ module Aristotle
 				end
 
 			end
+
+			# puts "debug transform_line_items_to_transaction_items_attributes 20"
 
 			transaction_items_attributes
 		end
