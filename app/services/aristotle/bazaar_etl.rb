@@ -248,6 +248,19 @@ module Aristotle
 				transaction[:status] = transaction[:status].to_i
 			end
 
+
+			src_order[:order_offers] = exec_query("SELECT * FROM bazaar_order_offers WHERE order_id = #{src_order[:id]}").to_a.collect(&:symbolize_keys)
+			src_order[:order_offers].each do |order_offer|
+				order_offer[:quantity]							= order_offer[:quantity].to_i
+				order_offer[:price]									= order_offer[:price].to_i
+				order_offer[:subtotal]							= order_offer[:subtotal].to_i
+				order_offer[:subscription_interval]	= order_offer[:subscription_interval].to_i
+
+				order_offer[:subscription] ||= extract_item( 'Bazaar::Subscription', order_offer[:subscription_id] )
+				order_offer[:offer] = extract_item( 'Bazaar::Offer', order_offer[:offer_id] )
+			end
+
+
 			src_order[:order_items] = exec_query("SELECT * FROM bazaar_order_items WHERE order_id = #{src_order[:id]}").to_a.collect(&:symbolize_keys)
 			src_order[:order_items].each do |order_item|
 
@@ -258,6 +271,20 @@ module Aristotle
 				order_item[:subscription] ||= extract_item( 'Bazaar::Subscription', order_item[:subscription_id] )
 				order_item[:item] ||= extract_item( order_item[:item_type], order_item[:item_id] )
 				order_item[:subscription] ||= order_item[:item] if order_item[:item_type] == 'Bazaar::Subscription'
+
+				if order_item[:item] && order_item[:item][:offer]
+
+					order_item[:offer] ||= order_item[:item][:offer]
+
+					# if offer is recurring and no subscription is present, try and
+					# recover it from the order offer
+					if order_item[:offer][:recurring] && order_item[:subscription].blank?
+						order_offer = src_order[:order_offers].find{ |order_offer| order_offer[:offer][:id] == order_item[:offer][:id] }
+
+						order_item[:subscription] ||= order_offer[:subscription]
+					end
+
+				end
 
 			end
 
@@ -446,15 +473,29 @@ module Aristotle
 				augement_subscription( item )
 
 				item[:subscription_plan] = extract_item( 'Bazaar::SubscriptionPlan', item[:subscription_plan_id] )
+				item[:offer] = extract_item( 'Bazaar::Offer', item[:offer_id] ) if item[:offer_id]
+
+			elsif item_type == 'Bazaar::Offer'
+
+				item = exec_query("SELECT * FROM bazaar_offers WHERE id = #{item_id}").first.symbolize_keys
+				item[:offer_prices] = exec_query("SELECT * FROM bazaar_offer_prices WHERE parent_obj_type = 'Bazaar::Offer' AND parent_obj_id = #{item[:id]}").to_a.collect(&:symbolize_keys)
+				item[:offer_skus] = exec_query("SELECT * FROM bazaar_offer_skus WHERE parent_obj_type = 'Bazaar::Offer' AND parent_obj_id = #{item[:id]}").to_a.collect(&:symbolize_keys)
+				item[:offer_schedules] = exec_query("SELECT * FROM bazaar_offer_schedules WHERE parent_obj_type = 'Bazaar::Offer' AND parent_obj_id = #{item[:id]}").to_a.collect(&:symbolize_keys)
+				item[:product] = exec_query("SELECT * FROM bazaar_products WHERE id = #{item[:product_id]}").first.symbolize_keys
+
+				sum_max_intervals = exec_query("SELECT SUM( COALESCE(max_intervals,99) ) FROM bazaar_offer_schedules WHERE status = 1 AND parent_obj_type = 'Bazaar::Offer' AND parent_obj_id = #{item[:id]}").first.first.last.to_i
+				item[:recurring] =  sum_max_intervals > 1
 
 			elsif item_type == 'Bazaar::Product'
 
 				item = exec_query("SELECT * FROM bazaar_products WHERE id = #{item_id}").first.symbolize_keys
+				item[:offer] = extract_item( 'Bazaar::Offer', item[:offer_id] ) if item[:offer_id]
 
 			elsif item_type == 'Bazaar::SubscriptionPlan'
 
 				item = exec_query("SELECT * FROM bazaar_subscription_plans WHERE id = #{item_id}").first.symbolize_keys
 				item[:item] = extract_item( item[:item_type], item[:item_id] )
+				item[:offer] = extract_item( 'Bazaar::Offer', item[:offer_id] ) if item[:offer_id]
 
 			elsif item_type == 'Bazaar::Discount'
 
