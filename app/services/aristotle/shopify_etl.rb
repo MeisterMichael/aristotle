@@ -735,7 +735,7 @@ module Aristotle
 		end
 
 		def extract_transaction_items_attributes_from_src_order( shopify_order, args = {} )
-			# puts "debug extract_transaction_items_attributes_from_src_order"
+			puts "debug extract_transaction_items_attributes_from_src_order #{JSON.pretty_generate( shopify_order )}" if (shopify_order[:line_items] || []).select{|list_item| list_item[:title].include?( 'Subscription' ) }.present?
 
 			state_attributes = self.extract_state_attributes_from_order( shopify_order )
 			# puts "debug extract_transaction_items_attributes_from_src_order 0.1"
