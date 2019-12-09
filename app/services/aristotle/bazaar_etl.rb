@@ -289,9 +289,9 @@ module Aristotle
 				transaction[:status] = transaction[:status].to_i
 			end
 
+
 			src_order[:order_offers] = exec_query("SELECT * FROM bazaar_order_offers WHERE order_id = #{src_order[:id]}").to_a.collect(&:symbolize_keys)
 			src_order[:order_offers].each do |order_offer|
-
 				order_offer[:quantity]							= order_offer[:quantity].to_i
 				order_offer[:price]									= order_offer[:price].to_i
 				order_offer[:subtotal]							= order_offer[:subtotal].to_i
@@ -299,8 +299,8 @@ module Aristotle
 
 				order_offer[:subscription] ||= extract_item( 'Bazaar::Subscription', order_offer[:subscription_id] )
 				order_offer[:offer] = extract_item( 'Bazaar::Offer', order_offer[:offer_id] )
-
 			end
+
 
 			src_order[:order_items] = exec_query("SELECT * FROM bazaar_order_items WHERE order_id = #{src_order[:id]}").to_a.collect(&:symbolize_keys)
 			src_order[:order_items].each do |order_item|
@@ -313,6 +313,20 @@ module Aristotle
 				order_item[:item] ||= extract_item( order_item[:item_type], order_item[:item_id] )
 				order_item[:offer] = order_item[:item][:offer] if order_item[:item]
 				order_item[:subscription] ||= order_item[:item] if order_item[:item_type] == 'Bazaar::Subscription'
+
+				if order_item[:item] && order_item[:item][:offer]
+
+					order_item[:offer] ||= order_item[:item][:offer]
+
+					# if offer is recurring and no subscription is present, try and
+					# recover it from the order offer
+					if order_item[:offer][:recurring] && order_item[:subscription].blank?
+						order_offer = src_order[:order_offers].find{ |order_offer| order_offer[:offer][:id] == order_item[:offer][:id] }
+
+						order_item[:subscription] ||= order_offer[:subscription]
+					end
+
+				end
 
 			end
 
