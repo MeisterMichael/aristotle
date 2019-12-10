@@ -347,6 +347,7 @@ module Aristotle
 				name: amazon_order['BuyerName'],
 				login: amazon_order['BuyerEmail'],
 				email: amazon_order['BuyerEmail'],
+				src_created_at: amazon_order['PurchaseDate'],
 			)
 
 			if customer.errors.present?
