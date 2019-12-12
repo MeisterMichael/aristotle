@@ -121,7 +121,7 @@ module Aristotle
 				new_rows << {}
 				if row.present?
 					self.columns.each do |column|
-						value = row[column[:label]]
+						value = row[column[:label]] || row[column[:label].to_sym]
 						objectified_value = objectified_value( column, value )
 						new_rows.last[column[:label]] = objectified_value
 					end
@@ -133,10 +133,10 @@ module Aristotle
 
 		def objectified_value( column, value )
 			objectified_value = value
-			objectified_value = Time.parse( value ) if column[:type] == 'datetime'
-			objectified_value = Date.parse( value ) if column[:type] == 'date'
-			objectified_value = value.to_i if column[:type] == 'integer'
-			objectified_value = value.to_f if column[:type] == 'float'
+			objectified_value = Time.parse( value.to_s ) if value.present? && column[:type] == 'datetime'
+			objectified_value = Date.parse( value.to_s ) if value.present? && column[:type] == 'date'
+			objectified_value = value.to_i if value.present? && column[:type] == 'integer'
+			objectified_value = value.to_f if value.present? && column[:type] == 'float'
 			objectified_value
 		end
 

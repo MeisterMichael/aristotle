@@ -475,6 +475,7 @@ module Aristotle
 					name: "#{src_customer[:first_name]} #{src_customer[:last_name]}".strip,
 					login: src_customer[:email],
 					email: src_customer[:email],
+					src_created_at: src_customer[:created_at],
 				)
 			else
 				customer = Aristotle::Customer.where( email: src_order[:email] ).first
@@ -485,6 +486,7 @@ module Aristotle
 					name: "#{src_order[:billing_address][:first_name]} #{src_order[:billing_address][:last_name]}".strip,
 					login: src_order[:email],
 					email: src_order[:email],
+					src_created_at: src_order[:created_at],
 				)
 			end
 
