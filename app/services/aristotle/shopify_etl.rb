@@ -844,6 +844,7 @@ module Aristotle
 			properties = transform_line_item_properties_to_hash( line_item_data )
 
 			offer_type = 'default'
+			offer_type = 'renewal' if properties[:subscription_id].present?
 			offer_type = 'subscription' if properties[:subscription_first_order]
 
 			# puts "debug transform_line_item_to_offer"
@@ -926,6 +927,7 @@ module Aristotle
 						src_line_item_id: line_item_data[:id].to_s,
 
 						offer: offer,
+						offer_type: offer.offer_type,
 						product: offer.try(:product),
 
 						src_subscription_id: properties[:subscription_id].to_s,

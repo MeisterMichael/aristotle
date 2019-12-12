@@ -24,6 +24,7 @@ namespace :aristotle do
 		# migrations
 		migrations = [
 			'aristotle_migration.rb',
+			'20191203144200_transaction_item_offer_type_migration.rb',
 		]
 
 		prefix = Time.now.utc.strftime("%Y%m%d%H%M%S").to_i

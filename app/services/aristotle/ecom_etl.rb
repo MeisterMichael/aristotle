@@ -611,6 +611,8 @@ module Aristotle
 					subscription: 		order_transaction_item.subscription,
 					product:			order_transaction_item.product,
 					offer:				order_transaction_item.offer,
+					offer_type:				order_transaction_item.offer_type,
+					subscription_interval:	order_transaction_item.subscription_interval,
 					src_line_item_id:	order_transaction_item.src_line_item_id,
 					currency:			order_transaction_item.currency,
 					amount: 			-order_transaction_item.amount,
@@ -682,6 +684,8 @@ module Aristotle
 						subscription: 		order_transaction_item.subscription,
 						product:			order_transaction_item.product,
 						offer:				order_transaction_item.offer,
+						subscription_interval: order_transaction_item.subscription_interval,
+						offer_type:				order_transaction_item.offer_type,
 						src_line_item_id:	order_transaction_item.src_line_item_id,
 						currency:			order_transaction_item.currency,
 					}
@@ -731,6 +735,8 @@ module Aristotle
 					subscription: 		order_transaction_item.subscription,
 					product:			order_transaction_item.product,
 					offer:				order_transaction_item.offer,
+					subscription_interval: order_transaction_item.subscription_interval,
+					offer_type:				order_transaction_item.offer_type,
 					src_line_item_id:	order_transaction_item.src_line_item_id,
 					currency:			order_transaction_item.currency,
 				}

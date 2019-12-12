@@ -75,6 +75,15 @@ module Aristotle
 				sum_max_intervals = exec_query("SELECT SUM( COALESCE(max_intervals,99) ) FROM bazaar_offer_schedules WHERE status = 1 AND parent_obj_type = 'Bazaar::Offer' AND parent_obj_id = #{item[:id]}").first.first.last.to_i
 				item[:recurring] =  sum_max_intervals > 1
 
+			elsif item_type == 'Bazaar::Order'
+
+				item = exec_query("SELECT * FROM bazaar_orders WHERE id = #{item_id}").first.symbolize_keys
+
+				item[:properties] = parse_hstore_string( item[:properties] )
+				item[:total] = item[:total].to_i
+
+				extract_additional_attributes_for_order( item )
+
 			elsif item_type == 'Bazaar::Product'
 
 				item = exec_query("SELECT * FROM bazaar_products WHERE id = #{item_id}").first.symbolize_keys
@@ -222,8 +231,6 @@ module Aristotle
 
 			puts "Finished"
 		end
-
-		protected
 
 		def augement_subscription( src_subscription )
 
@@ -807,14 +814,18 @@ module Aristotle
 		# TRANSFORM ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 
-		def transform_line_item_to_offer( order_offer )
+		def transform_line_item_to_offer( order_offer, options = {} )
+			options[:data_src] ||= @data_src
 			src_offer = order_offer[:offer]
 
 			offer_type = 'default'
-			offer_type = 'subscription' if src_offer[:recurring]
+			if src_offer[:recurring]
+				offer_type = 'renewal'
+				offer_type = 'subscription' if order_offer[:subscription_interval].to_s == '1'
+			end
 
 			offer = find_or_create_offer(
-				@data_src,
+				options[:data_src],
 				product_attributes: {
 					src_product_id: "Bazaar::Product\##{src_offer[:product_id]}",
 					sku: src_offer[:product][:sku],
@@ -867,7 +878,9 @@ module Aristotle
 					transaction_item_attributes = {
 						src_line_item_id: order_offer[:id].to_s,
 						offer: offer,
+						offer_type: offer.offer_type,
 						product: offer.product,
+						subscription_interval: order_offer[:subscription_interval].to_i,
 						src_subscription_id: src_subscription_id.to_s,
 						subscription_attributes: subscription_attributes,
 						amount: amount,

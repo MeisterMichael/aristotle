@@ -370,6 +370,7 @@ module Aristotle
 		def extract_offer_from_order_item( amazon_order_item )
 
 			offer_type = 'default'
+			# offer_type = 'renewal'
 			# offer_type = 'subscription'
 
 			offer = find_or_create_offer(
@@ -663,6 +664,7 @@ module Aristotle
 						src_line_item_id: amazon_order_item['OrderItemId'],
 
 						offer: offer,
+						offer_type: offer.offer_type,
 						product: offer.product,
 
 						# src_subscription_id: properties[:subscription_id].to_s,
