@@ -182,8 +182,11 @@ module Aristotle
 		def augement_subscription( src_subscription )
 
 			if src_subscription && src_subscription[:subscription_plan_id].blank? && src_subscription[:offer_id].present?
-				src_subscription_plan = exec_query("SELECT * FROM bazaar_subscription_plans WHERE offer_id = #{src_subscription[:offer_id]}").first.symbolize_keys
-				src_subscription[:subscription_plan_id] = src_subscription_plan[:id]
+				src_subscription_plan = exec_query("SELECT * FROM bazaar_subscription_plans WHERE offer_id = #{src_subscription[:offer_id]}").first
+				if src_subscription_plan
+					src_subscription_plan = src_subscription_plan.symbolize_keys
+					src_subscription[:subscription_plan_id] = src_subscription_plan[:id]
+				end
 			end
 
 			src_subscription[:properties] = parse_hstore_string( src_subscription[:properties] )
