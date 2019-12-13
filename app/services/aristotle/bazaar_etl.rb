@@ -477,7 +477,7 @@ module Aristotle
 
 				augement_subscription( item )
 
-				item[:subscription_plan] = extract_item( 'Bazaar::SubscriptionPlan', item[:subscription_plan_id] )
+				item[:subscription_plan] = extract_item( 'Bazaar::SubscriptionPlan', item[:subscription_plan_id] ) if item[:subscription_plan_id]
 				item[:offer] = extract_item( 'Bazaar::Offer', item[:offer_id] ) if item[:offer_id]
 
 			elsif item_type == 'Bazaar::Offer'
