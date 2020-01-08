@@ -76,6 +76,15 @@ module Aristotle
 				sum_max_intervals = exec_query("SELECT SUM( COALESCE(max_intervals,99) ) FROM bazaar_offer_schedules WHERE status = 1 AND parent_obj_type = 'Bazaar::Offer' AND parent_obj_id = #{item[:id]}").first.first.last.to_i
 				item[:recurring] =  sum_max_intervals > 1
 
+			elsif item_type == 'Bazaar::Order'
+
+				item = exec_query("SELECT * FROM bazaar_orders WHERE id = #{item_id}").first.symbolize_keys
+
+				item[:properties] = parse_hstore_string( item[:properties] )
+				item[:total] = item[:total].to_i
+
+				extract_additional_attributes_for_order( item )
+
 			elsif item_type == 'Bazaar::Product'
 
 				item = exec_query("SELECT * FROM bazaar_products WHERE id = #{item_id}").first.symbolize_keys
