@@ -62,7 +62,8 @@ module Aristotle
 
 				augement_subscription( item )
 
-				item[:subscription_plan] = extract_item( 'Bazaar::SubscriptionPlan', item[:subscription_plan_id] )
+				item[:subscription_plan] = extract_item( 'Bazaar::SubscriptionPlan', item[:subscription_plan_id] ) if item[:subscription_plan_id]
+				item[:offer] = extract_item( "Bazaar::Offer", item[:offer_id] ) if item[:offer_id]
 
 			elsif item_type == 'Bazaar::Offer'
 
@@ -75,15 +76,6 @@ module Aristotle
 				sum_max_intervals = exec_query("SELECT SUM( COALESCE(max_intervals,99) ) FROM bazaar_offer_schedules WHERE status = 1 AND parent_obj_type = 'Bazaar::Offer' AND parent_obj_id = #{item[:id]}").first.first.last.to_i
 				item[:recurring] =  sum_max_intervals > 1
 
-			elsif item_type == 'Bazaar::Order'
-
-				item = exec_query("SELECT * FROM bazaar_orders WHERE id = #{item_id}").first.symbolize_keys
-
-				item[:properties] = parse_hstore_string( item[:properties] )
-				item[:total] = item[:total].to_i
-
-				extract_additional_attributes_for_order( item )
-
 			elsif item_type == 'Bazaar::Product'
 
 				item = exec_query("SELECT * FROM bazaar_products WHERE id = #{item_id}").first.symbolize_keys
@@ -93,7 +85,7 @@ module Aristotle
 
 				item = exec_query("SELECT * FROM bazaar_subscription_plans WHERE id = #{item_id}").first.symbolize_keys
 				item[:item] = extract_item( item[:item_type], item[:item_id] )
-				item[:offer] = extract_item( "Bazaar::Offer", item[:offer_id] )
+				item[:offer] = extract_item( 'Bazaar::Offer', item[:offer_id] ) if item[:offer_id]
 
 			elsif item_type == 'Bazaar::Discount'
 
@@ -235,8 +227,11 @@ module Aristotle
 		def augement_subscription( src_subscription )
 
 			if src_subscription && src_subscription[:subscription_plan_id].blank? && src_subscription[:offer_id].present?
-				src_subscription_plan = exec_query("SELECT * FROM bazaar_subscription_plans WHERE offer_id = #{src_subscription[:offer_id]}").first.symbolize_keys
-				src_subscription[:subscription_plan_id] = src_subscription_plan[:id]
+				src_subscription_plan = exec_query("SELECT * FROM bazaar_subscription_plans WHERE offer_id = #{src_subscription[:offer_id]}").first
+				if src_subscription_plan
+					src_subscription_plan = src_subscription_plan.symbolize_keys
+					src_subscription[:subscription_plan_id] = src_subscription_plan[:id]
+				end
 			end
 
 			src_subscription[:properties] = parse_hstore_string( src_subscription[:properties] )
