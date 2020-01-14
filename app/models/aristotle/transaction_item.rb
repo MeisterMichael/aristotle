@@ -9,9 +9,10 @@ module Aristotle
 		belongs_to :subscription, required: false
 		belongs_to :wholesale_client, required: false
 
+		enum offer_type: { 'subscription' => 1, 'default' => 0, 'renewal' => 2 }
+		enum payment_type: { 'no_payment_type' => 0, 'credit_card' => 1, 'paypal' => 2, 'amazon_payments' => 3, 'cash' => 4, 'cheque' => 5, 'bitpay' => 6 }
 		enum status: { 'cancelled' => -2, 'failed' => -1, 'pending' => 0, 'pre_ordered' => 1, 'on_hold' => 8, 'processing' => 9, 'completed' => 10, 'refunded' => 11 }
 		enum transaction_type: { 'charge' => 1, 'refund' => -1 }
-		enum payment_type: { 'no_payment_type' => 0, 'credit_card' => 1, 'paypal' => 2, 'amazon_payments' => 3, 'cash' => 4, 'cheque' => 5, 'bitpay' => 6 }
 
 		def self.has_completed
 			where.not( completed_at: nil )
