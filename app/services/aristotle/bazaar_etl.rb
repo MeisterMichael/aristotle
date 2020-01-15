@@ -119,10 +119,12 @@ module Aristotle
 
 			order_batch_where = "WHERE updated_at <= '#{(args[:updated_at_max] || Time.now).strftime('%Y-%m-%dT%H:%M:%S%:z')}'"
 			order_batch_where = "#{order_batch_where} AND created_at <= '#{args[:created_at_max].strftime('%Y-%m-%dT%H:%M:%S%:z')}'" if args[:created_at_max]
+			order_batch_where = "#{order_batch_where} AND id <= #{args[:id_max]}" if args[:id_max]
 			order_batch_where = "#{order_batch_where} AND type = '#{@order_type}'" if @order_type
 			order_batch_where = "#{order_batch_where} AND source = '#{@order_source}'" if @order_source
 			order_batch_where = "#{order_batch_where} AND updated_at >= '#{args[:updated_at_min].strftime('%Y-%m-%dT%H:%M:%S%:z')}'" if args[:updated_at_min]
 			order_batch_where = "#{order_batch_where} AND created_at >= '#{args[:created_at_min].strftime('%Y-%m-%dT%H:%M:%S%:z')}'" if args[:created_at_min]
+			order_batch_where = "#{order_batch_where} AND id >= #{args[:id_min]}" if args[:id_min]
 
 			order_ids_query = <<-SQL
 				SELECT id, updated_at FROM bazaar_orders #{order_batch_where} ORDER BY id ASC;
