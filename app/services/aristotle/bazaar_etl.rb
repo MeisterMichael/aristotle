@@ -455,7 +455,7 @@ module Aristotle
 					used_at: order.src_created_at,
 				}
 
-				puts "coupon_use.changes #{coupon_use.changes.to_json}" if coupon_use.changes.present?
+				puts "coupon_use.changes #{coupon_use.changes.to_json}" if coupon_use.persisted? && coupon_use.changes.present?
 				coupon_use.save!
 
 
