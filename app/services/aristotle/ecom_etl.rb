@@ -57,11 +57,14 @@ module Aristotle
 
 
 		def process_order( src_order, data_src, event = nil )
+			# puts "\nprocess_order"
 			src_order = self.extract_additional_attributes_for_order( src_order )
+
+			# puts "  process_order after extract_additional_attributes_for_order"
 
 			src_order_id = self.extract_id_from_src_order( src_order )
 
-			# puts "\nprocess_order #{src_order_id}"
+			# puts "  process_order after extract_id_from_src_order"
 
 			# active records to update
 			transaction_items = TransactionItem.where( data_src: data_src, src_transaction_id: src_order_id )
