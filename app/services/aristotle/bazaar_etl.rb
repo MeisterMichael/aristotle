@@ -829,10 +829,7 @@ module Aristotle
 			src_offer = order_offer[:offer]
 
 			offer_type = 'default'
-			if src_offer[:recurring]
-				offer_type = 'renewal'
-				offer_type = 'subscription' if order_offer[:subscription_interval].to_s == '1'
-			end
+			offer_type = 'subscription' if src_offer[:recurring]
 
 			offer = find_or_create_offer(
 				options[:data_src],
@@ -885,12 +882,17 @@ module Aristotle
 				(0..quantity-1).each do |i|
 					amount 		= distributed_prices[i]
 
+					subscription_interval = order_offer[:subscription_interval].to_i
+
+					offer_type = offer.offer_type
+					offer_type = 'renewal' if offer.subscription? && subscription_interval > 1
+
 					transaction_item_attributes = {
 						src_line_item_id: order_offer[:id].to_s,
 						offer: offer,
-						offer_type: offer.offer_type,
+						offer_type: offer_type,
 						product: offer.product,
-						subscription_interval: order_offer[:subscription_interval].to_i,
+						subscription_interval: subscription_interval,
 						src_subscription_id: src_subscription_id.to_s,
 						subscription_attributes: subscription_attributes,
 						amount: amount,
