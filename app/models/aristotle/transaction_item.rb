@@ -18,20 +18,12 @@ module Aristotle
 			where.not( completed_at: nil )
 		end
 
-		def self.new_subscriptions
-			joins(:offer).where( 'aristotle_offers.offer_type = :subscription_offer_type', subscription_offer_type: Offer.offer_types['subscription'] )
-		end
-
 		def self.direct # non-renewals and not referred by partner
 			self.nonrenewals.where( channel_partner: nil )
 		end
 
 		def self.nonrenewals
-			joins(:offer).where( 'aristotle_offers.offer_type = :subscription_offer_type OR aristotle_transaction_items.subscription_id IS NULL', subscription_offer_type: Offer.offer_types['subscription'] )
-		end
-
-		def self.renewals
-			joins(:offer).where( 'NOT( aristotle_offers.offer_type = :subscription_offer_type ) AND aristotle_transaction_items.subscription_id IS NOT NULL', subscription_offer_type: Offer.offer_types['subscription'] )
+			where.not( offer_type: 'renewal' )
 		end
 
 		def self.full_refund
