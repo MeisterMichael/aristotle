@@ -818,7 +818,9 @@ module Aristotle
 		end
 
 		def is_subscription_order( src_order )
-			src_order[:order_items].select{ |order_item| order_item[:item_type].include?( 'SubscriptionPlan' ) }.present?
+			has_first_interval_subscription = src_order[:order_offers].select{ |order_offer| order_offer[:subscription].present? && order_offer[:subscription_interval] == 1 }.present?
+			# has_first_interval_subscription = src_order[:order_items].select do |order_item| (order_item[:item_type] || '').include?( 'SubscriptionPlan' ) }.present?
+			has_first_interval_subscription
 		end
 
 		# TRANSFORM ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
