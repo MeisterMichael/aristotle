@@ -508,7 +508,7 @@ module Aristotle
 
 			order.channel_partner		||= self.extract_channel_partner_from_src_order( src_order )
 			order.location					||= self.extract_location_from_src_order( src_order )
-			order.customer					||= self.extract_customer_from_src_order( src_order )
+			order.customer					= self.extract_customer_from_src_order( src_order )
 			order.wholesale_client	||= self.extract_wholesale_client_from_src_order( src_order )
 			order.src_order_label		||= self.extract_order_label_from_order( src_order )
 

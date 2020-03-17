@@ -498,6 +498,20 @@ module Aristotle
 				)
 			end
 
+			if src_order[:shipping_address]
+				customer.street = src_order[:shipping_address][:street]		if customer.respond_to? :street
+				customer.street2 = src_order[:shipping_address][:street2]	if customer.respond_to? :street2
+				customer.city = src_order[:shipping_address][:city]	if customer.respond_to? :city
+				customer.zip = src_order[:shipping_address][:zip]	if customer.respond_to? :zip
+				customer.country_code = src_order[:shipping_address][:geo_country][:abbrev]	if customer.respond_to? :country_code
+				customer.country_name = src_order[:shipping_address][:geo_country][:name]	if customer.respond_to? :country_name
+				customer.state_code = (src_order[:shipping_address][:geo_state] || {})[:abbrev]	if customer.respond_to? :state_code
+				customer.state_name = (src_order[:shipping_address][:geo_state] || {})[:name]	if customer.respond_to? :state_name
+				customer.state_name ||= src_order[:shipping_address][:state]	if customer.respond_to? :state_name
+				puts "customer.changes #{customer.changes.to_json}" if customer.changes.present?
+				customer.save
+			end
+
 			# the src created at for the customer is the smallest created at date
 			# for an order
 			order_created_at	= Time.parse src_order[:created_at]
