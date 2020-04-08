@@ -1,6 +1,9 @@
 module Aristotle
 	class AmazonEtl < EcomEtl
 
+		MAX_REQUEST_RETRIES = 5
+		REQUEST_COOLDOWN_SECONDS = 1.25
+
 		AMAZON_EPOCH = '2017-07-15T00:00:00-08:00'
 
 		UNITED_STATES_MARKETPLACE_ID = 'ATVPDKIKX0DER' # US
@@ -162,10 +165,17 @@ module Aristotle
 				next_token = parsed_response['NextToken']
 
 				parsed_response['ReportInfo'].each do |report|
-					unless report.present?
-						puts "Skip settlement #{report}"
+					if report.blank?
+						puts "Skip settlement #{report} (blank)"
+						next
+					elsif not( report.is_a?( Hash ) )
+						puts "Skip settlement #{report} (not a hash)"
+						puts report.class.name
+						puts JSON.pretty_generate( report )
+						puts JSON.pretty_generate( parsed_response )
 						next
 					end
+
 
 					last_settlement_report_at ||= report['AvailableDate'].gsub('T',' ').gsub('+00:00',' UTC')
 
@@ -801,21 +811,21 @@ module Aristotle
 
 					# cooldown... looks like the api can sustain 8 request every
 					# 10 seconds.
-					sleep 1.25
+					sleep REQUEST_COOLDOWN_SECONDS
 					return response
 				rescue Peddler::Errors::RequestThrottled => e
 					timeout_count = timeout_count + 1
-					raise e if timeout_count >= 5
+					raise e if timeout_count >= MAX_REQUEST_RETRIES
 					puts "AmazonEtl api #{method} Cooling down api"
 					sleep 10*timeout_count # need to cool down api
 				rescue Excon::Error::ServiceUnavailable => e
 					timeout_count = timeout_count + 1
-					raise e if timeout_count >= 5
+					raise e if timeout_count >= MAX_REQUEST_RETRIES
 					puts "AmazonEtl api #{method} Cooling down api"
 					sleep 10*timeout_count # need to cool down api
 				rescue Excon::Error::Timeout => e
 					timeout_count = timeout_count + 1
-					raise e if timeout_count >= 5
+					raise e if timeout_count >= MAX_REQUEST_RETRIES
 					puts "AmazonEtl api #{method} Cooling down api"
 					sleep 10*timeout_count # need to cool down api
 				end
