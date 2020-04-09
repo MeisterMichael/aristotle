@@ -164,6 +164,8 @@ module Aristotle
 
 				next_token = parsed_response['NextToken']
 
+				parsed_response['ReportInfo'] = [parsed_response['ReportInfo']] if parsed_response['ReportInfo'].is_a? Hash
+
 				parsed_response['ReportInfo'].each do |report|
 					if report.blank?
 						puts "Skip settlement #{report} (blank)"
