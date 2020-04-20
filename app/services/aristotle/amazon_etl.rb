@@ -346,6 +346,8 @@ module Aristotle
 				src_created_at: amazon_order['PurchaseDate'],
 			)
 
+			customer.first_transacted_at = [ (customer.first_transacted_at || Time.now), Time.parse(amazon_order['PurchaseDate']) ].min if customer.respond_to? :first_transacted_at
+
 			if customer.errors.present?
 				Rails.logger.info customer.attributes.to_s
 				raise Exception.new( customer.errors.full_messages )

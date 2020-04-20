@@ -512,6 +512,8 @@ module Aristotle
 				customer.save
 			end
 
+			customer.first_transacted_at = [ (customer.first_transacted_at || Time.now), Time.parse(src_order[:created_at]) ].min if customer.respond_to? :first_transacted_at
+
 			# the src created at for the customer is the smallest created at date
 			# for an order
 			order_created_at	= Time.parse src_order[:created_at]

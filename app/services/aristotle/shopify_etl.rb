@@ -448,6 +448,10 @@ module Aristotle
 			order_created_at	= Time.parse shopify_order[:created_at]
 			src_created_at		= [ order_created_at, (customer.src_created_at || order_created_at) ].min
 
+
+			customer.first_transacted_at = [ (customer.first_transacted_at || Time.now), Time.parse(shopify_order[:created_at]) ].min if customer.respond_to? :first_transacted_at
+
+
 			customer.update( shopify_customer_id: shopify_customer[:id], src_created_at: src_created_at )
 
 			if customer.errors.present?
