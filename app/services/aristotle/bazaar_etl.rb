@@ -125,6 +125,7 @@ module Aristotle
 			order_batch_where = "#{order_batch_where} AND updated_at >= '#{args[:updated_at_min].strftime('%Y-%m-%dT%H:%M:%S%:z')}'" if args[:updated_at_min]
 			order_batch_where = "#{order_batch_where} AND created_at >= '#{args[:created_at_min].strftime('%Y-%m-%dT%H:%M:%S%:z')}'" if args[:created_at_min]
 			order_batch_where = "#{order_batch_where} AND id >= #{args[:id_min]}" if args[:id_min]
+			order_batch_where = "#{order_batch_where} AND payment_status = -1" if args[:refunded_only]
 
 			order_ids_query = <<-SQL
 				SELECT id, updated_at FROM bazaar_orders #{order_batch_where} ORDER BY id ASC;
@@ -512,7 +513,7 @@ module Aristotle
 				customer.save
 			end
 
-			customer.first_transacted_at = [ (customer.first_transacted_at || Time.now), Time.parse(src_order[:created_at]) ].min if customer.respond_to? :first_transacted_at
+			# customer.first_transacted_at = [ (customer.first_transacted_at || Time.now), Time.parse(src_order[:created_at]) ].min
 
 			# the src created at for the customer is the smallest created at date
 			# for an order
