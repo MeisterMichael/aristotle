@@ -28,6 +28,14 @@ module Aristotle
 			[ :commission, :amount, :misc_discount, :coupon_discount, :total_discount, :sub_total, :shipping, :shipping_tax, :tax, :adjustment, :total ]
 		end
 
+		def self.POSITIVE_NUMERIC_ATTRIBUTES
+			[ :commission, :amount, :misc_discount, :coupon_discount, :total_discount, :sub_total, :shipping, :shipping_tax, :tax, :total ]
+		end
+
+		def self.NEGATIVE_NUMERIC_ATTRIBUTES
+			[ :misc_discount, :coupon_discount, :total_discount ]
+		end
+
 		def self.TIMESTAMP_ATTRIBUTES
 			[:src_created_at, :transacted_at, :canceled_at, :failed_at, :pending_at, :pre_ordered_at, :on_hold_at, :processing_at, :completed_at, :refunded_at]
 		end
@@ -481,7 +489,7 @@ module Aristotle
 					# Partial Refund, without line items
 					# puts " -- Partial Refund w/o Items -- "
 
-					transaction_items_attributes = transform_amount_refund_into_transaction_items_attributes( order_transaction_items, aggregate_adjustments.merge( total: refund_total ) )
+					transaction_items_attributes = transform_amount_refund_into_transaction_items_attributes( order_transaction_items, refund_total, aggregate_adjustments )
 
 				end
 
@@ -527,7 +535,11 @@ module Aristotle
 
 			EcomEtl.NUMERIC_ATTRIBUTES.each do |attribute_name|
 				if EcomEtl.AGGREGATE_TOTAL_NUMERIC_ATTRIBUTES.include?(attribute_name)
-					calculated_total += transaction_item_attributes[attribute_name]
+					if EcomEtl.NEGATIVE_NUMERIC_ATTRIBUTES.include?(attribute_name)
+						calculated_total -= transaction_item_attributes[attribute_name]
+					else
+						calculated_total += transaction_item_attributes[attribute_name]
+					end
 				end
 			end
 
@@ -714,24 +726,34 @@ module Aristotle
 			transaction_items_attributes
 		end
 
-		def transform_amount_refund_into_transaction_items_attributes( order_transaction_items, args = {} )
+		def transform_amount_refund_into_transaction_items_attributes( order_transaction_items, refund_total, args = {} )
+			log_string = ""
+
 			transaction_items_attributes = []
 
 			order_transaction_items = order_transaction_items.to_a
 
-			aggregate_attribute_name	= args.keys.first
-			aggregate_attribute_value	= args[aggregate_attribute_name]
+			charge_total = order_transaction_items.sum{ |item| item.try(:total) }
+			ratios_of_totals = order_transaction_items.collect{ |item| item.try(:total) / charge_total.abs.to_f }
 
-			order_aggregate_attribute_total = order_transaction_items.sum{ |item| item.try(aggregate_attribute_name) }
-			ratios_of_totals = order_transaction_items.collect{ |item| item.try(aggregate_attribute_name) / order_aggregate_attribute_total.abs.to_f }
+			refund_percent = refund_total.to_f / charge_total.to_f
 
-			distributed_attributes = {}
+			# puts "refund_total #{refund_total}"
+			# puts "charge_total #{charge_total}"
+			# puts "ratios_of_totals"
+			# puts JSON.pretty_generate( ratios_of_totals )
+			# puts "refund_percent #{refund_percent}"
+
+			# distribute the total and any specified refund amounts proproptionately
+			# between transaction items
+			distributed_attributes = {
+				total: EcomEtl.distribute_ratios( refund_total, ratios_of_totals ),
+			}
 			args.each do |attribute_name, attribute_value|
 				distributed_attributes[attribute_name] = EcomEtl.distribute_ratios( attribute_value, ratios_of_totals )
 			end
 
 			order_transaction_items.each_with_index do |order_transaction_item, index|
-				ratio = distributed_attributes[aggregate_attribute_name][index].abs.to_f / order_transaction_item.try(aggregate_attribute_name)
 
 				transaction_item_attributes = {
 					src_subscription_id: order_transaction_item.src_subscription_id,
@@ -744,16 +766,17 @@ module Aristotle
 					currency:			order_transaction_item.currency,
 				}
 
-
+				log_string += "order_transaction_item.src_order_id #{order_transaction_item.src_order_id}\n"
 				EcomEtl.NUMERIC_ATTRIBUTES.each do |attribute_name|
 
-
+					# if an static amount was specified for this refund, then use it,
+					# otherwise use the refund percent to determine the amount.
 					if distributed_attributes[attribute_name].present?
-						attribute_value = distributed_attributes[attribute_name][index]
-						# puts "#{attribute_name}: #{attribute_value} (distributed)      #{order_transaction_item.try(attribute_name)}"
+						attribute_value = -distributed_attributes[attribute_name][index].abs
+						log_string += "#{attribute_name}: #{attribute_value} (distributed)      #{order_transaction_item.try(attribute_name)}\n"
 					else
-						attribute_value = -(ratio * order_transaction_item.try(attribute_name).to_f).to_i
-						# puts "#{attribute_name}: #{attribute_value} (ratio)     #{ratio} * #{order_transaction_item.try(attribute_name).to_f}"
+						attribute_value = -(refund_percent * order_transaction_item.try(attribute_name).to_f).to_i.abs
+						log_string += "#{attribute_name}: #{attribute_value} (percent)     #{refund_percent} * #{order_transaction_item.try(attribute_name).to_f}\n"
 					end
 
 
@@ -765,6 +788,19 @@ module Aristotle
 
 				transaction_items_attributes << transaction_item_attributes
 
+			end
+
+			# verify that all fields for a refund are negative
+			transaction_items_attributes.each do |transaction_item_attributes|
+				EcomEtl.POSITIVE_NUMERIC_ATTRIBUTES.each do |attr|
+					unless transaction_item_attributes[attr] <= 0
+						puts "#{attr} should be negative on a refund"
+						puts JSON.pretty_generate( order_transaction_items.collect(&:attributes) )
+						puts JSON.pretty_generate( transaction_items_attributes )
+						puts log_string
+						raise Exception.new("#{attr} should be negative on a refund #{order_transaction_items.collect(&:src_order_id)}")
+					end
+				end
 			end
 
 			transaction_items_attributes
