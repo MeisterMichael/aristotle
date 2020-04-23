@@ -567,7 +567,7 @@ module Aristotle
 
 			# Recalculate
 			transaction_item_attributes[:total_discount] 	= EcomEtl.sum_key_values( transaction_item_attributes, EcomEtl.AGGREGATE_TOTAL_DISCOUNT_NUMERIC_ATTRIBUTES )
-			transaction_item_attributes[:sub_total] 		= EcomEtl.sum_key_values( transaction_item_attributes, EcomEtl.AGGREGATE_SUB_TOTAL_NUMERIC_ATTRIBUTES )
+			transaction_item_attributes[:sub_total] 		= transaction_item_attributes[:amount] - transaction_item_attributes[:total_discount]
 
 
 			# if total_delta != 0
@@ -754,6 +754,8 @@ module Aristotle
 			end
 
 			order_transaction_items.each_with_index do |order_transaction_item, index|
+				order_transaction_item_attributes_was = order_transaction_item.attributes.merge({}).symbolize_keys
+				order_transaction_item_attributes = order_transaction_item.attributes.merge({}).symbolize_keys
 
 				transaction_item_attributes = {
 					src_subscription_id: order_transaction_item.src_subscription_id,
@@ -766,6 +768,22 @@ module Aristotle
 					currency:			order_transaction_item.currency,
 				}
 
+				# account for crazy data anomalies.  Work backwards.
+				order_transaction_item_attributes[:sub_total] = order_transaction_item_attributes[:total] - order_transaction_item_attributes[:tax] - order_transaction_item_attributes[:shipping]
+				if order_transaction_item_attributes_was[:sub_total].to_i != order_transaction_item_attributes[:sub_total].to_i
+						puts "order_transaction_item_attributes.sub_total changed"
+						puts " -> #{order_transaction_item_attributes_was[:sub_total]}"
+						puts " -> #{order_transaction_item_attributes[:sub_total]}"
+				end
+
+				order_transaction_item_attributes[:amount] = order_transaction_item_attributes[:sub_total] + order_transaction_item_attributes[:total_discount]
+				if order_transaction_item_attributes_was[:amount].to_i != order_transaction_item_attributes[:amount].to_i
+						puts "order_transaction_item_attributes.amount changed"
+						puts " -> #{order_transaction_item_attributes_was[:amount]}"
+						puts " -> #{order_transaction_item_attributes[:amount]}"
+				end
+
+
 				log_string += "order_transaction_item.src_order_id #{order_transaction_item.src_order_id}\n"
 				EcomEtl.NUMERIC_ATTRIBUTES.each do |attribute_name|
 
@@ -773,10 +791,10 @@ module Aristotle
 					# otherwise use the refund percent to determine the amount.
 					if distributed_attributes[attribute_name].present?
 						attribute_value = -distributed_attributes[attribute_name][index].abs
-						log_string += "#{attribute_name}: #{attribute_value} (distributed)      #{order_transaction_item.try(attribute_name)}\n"
+						log_string += "#{attribute_name}: #{attribute_value} (distributed)      #{order_transaction_item_attributes[attribute_name]}\n"
 					else
-						attribute_value = -(refund_percent * order_transaction_item.try(attribute_name).to_f).to_i.abs
-						log_string += "#{attribute_name}: #{attribute_value} (percent)     #{refund_percent} * #{order_transaction_item.try(attribute_name).to_f}\n"
+						attribute_value = -(refund_percent * order_transaction_item_attributes[attribute_name].to_f).to_i.abs
+						log_string += "#{attribute_name}: #{attribute_value} (percent)     #{refund_percent} * #{order_transaction_item_attributes[attribute_name].to_f}\n"
 					end
 
 
@@ -791,16 +809,25 @@ module Aristotle
 			end
 
 			# verify that all fields for a refund are negative
-			transaction_items_attributes.each do |transaction_item_attributes|
-				EcomEtl.POSITIVE_NUMERIC_ATTRIBUTES.each do |attr|
-					unless transaction_item_attributes[attr] <= 0
-						puts "#{attr} should be negative on a refund"
-						puts JSON.pretty_generate( order_transaction_items.collect(&:attributes) )
-						puts JSON.pretty_generate( transaction_items_attributes )
-						puts log_string
-						raise Exception.new("#{attr} should be negative on a refund #{order_transaction_items.collect(&:src_order_id)}")
+			begin
+				transaction_items_attributes.each do |transaction_item_attributes|
+					EcomEtl.POSITIVE_NUMERIC_ATTRIBUTES.each do |attr|
+						raise Exception.new("#{attr} should be negative on a refund #{order_transaction_items.collect(&:src_order_id)}") unless transaction_item_attributes[attr] <= 0
 					end
+
+					raise Exception.new("amount (#{transaction_item_attributes[:amount]}) - discount (#{transaction_item_attributes[:total_discount]}) does not equal sub_total (#{transaction_item_attributes[:sub_total]}) on a refund #{order_transaction_items.collect(&:src_order_id)}") unless ((transaction_item_attributes[:amount] - transaction_item_attributes[:total_discount]) - transaction_item_attributes[:sub_total]).abs <= 5
+					raise Exception.new("sub_total (#{transaction_item_attributes[:sub_total]}) + shipping (#{transaction_item_attributes[:shipping]}) + taxes (#{transaction_item_attributes[:tax]}) does not equal total (#{transaction_item_attributes[:total]}) on a refund #{order_transaction_items.collect(&:src_order_id)}") unless ((transaction_item_attributes[:sub_total] + transaction_item_attributes[:shipping] + transaction_item_attributes[:tax]) - transaction_item_attributes[:total]).abs <= 5
+
 				end
+
+				raise Exception.new("total expected is different than sum #{refund_total} != #{transaction_items_attributes.sum{|transaction_item_attributes| transaction_item_attributes[:total] }} on a refund #{order_transaction_items.collect(&:src_order_id)}") unless refund_total != transaction_items_attributes.sum{|transaction_item_attributes| transaction_item_attributes[:total] }
+			rescue Exception => e
+				puts e.message
+				puts JSON.pretty_generate( order_transaction_items.collect(&:attributes) )
+				puts JSON.pretty_generate( transaction_items_attributes )
+				puts log_string
+
+				raise e
 			end
 
 			transaction_items_attributes
