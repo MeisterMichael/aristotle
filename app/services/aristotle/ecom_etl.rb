@@ -443,7 +443,7 @@ module Aristotle
 
 				if transaction_item.changes.present?
 
-					puts "transaction_item.changes #{transaction_item.changes.to_json}"
+					puts "transaction_item.changes #{transaction_item.changes.to_json} #{transaction_item[:src_order_id]}"
 					# puts JSON.pretty_generate src_order
 					# puts JSON.pretty_generate transaction_item_attributes
 
@@ -551,7 +551,7 @@ module Aristotle
 			# shuffle any rounding errors into misc discount, if discount present
 			if transaction_item_attributes[:total_discount] != 0
 
-				transaction_item_attributes[:misc_discount] += + total_delta
+				transaction_item_attributes[:misc_discount] -= total_delta
 
 			# shuffle any rounding errors into tax, if tax present
 			elsif transaction_item_attributes[:tax] != 0
@@ -571,6 +571,7 @@ module Aristotle
 
 
 			# if total_delta != 0
+			# 	puts "total_delta #{total_delta}"
 			# 	puts JSON.pretty_generate transaction_item_attributes
 			# else
 			# 	puts "No Changes"
