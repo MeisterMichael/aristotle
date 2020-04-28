@@ -732,7 +732,7 @@ module Aristotle
 					line_item[attr_name] = 0
 				end
 
-				line_item[:coupon_discount] = ( amazon_refund_order_item['PromotionDiscount']['Amount'].to_f * 100 ).to_i if amazon_refund_order_item['PromotionDiscount'].present?
+				line_item[:coupon_discount] = -( amazon_refund_order_item['PromotionDiscount']['Amount'].to_f * 100 ).to_i.abs if amazon_refund_order_item['PromotionDiscount'].present?
 				line_item[:amount] 			= ( amazon_refund_order_item['ItemPrice']['Amount'].to_f * 100 ).to_i if amazon_refund_order_item['ItemPrice'].present?
 				line_item[:tax]				= ( amazon_refund_order_item['ItemTax']['Amount'].to_f * 100 ).to_i if amazon_refund_order_item['ItemTax'].present?
 
