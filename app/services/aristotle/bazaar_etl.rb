@@ -874,11 +874,18 @@ module Aristotle
 			tax_order_items = order_items.select{ |order_item| order_item[:order_item_type].to_i == ORDER_ITEM_TYPE_TAX }
 			discount_order_items = order_items.select{ |order_item| order_item[:order_item_type].to_i == ORDER_ITEM_TYPE_DISCOUNT }
 
-			prod_total = prod_order_items.sum{|order_item| order_item[:subtotal].to_i }
+			if order_offers.present?
+				prod_total = order_offers.sum{|order_offer| order_offer[:subtotal].to_i }
+			else
+				prod_total = order_items.sum{|order_item| order_item[:subtotal].to_i }
+			end
+
 			shipping_total = shipping_order_items.sum{|order_item| order_item[:subtotal].to_i }
 			tax_total = tax_order_items.sum{|order_item| order_item[:subtotal].to_i }
 			discount_total = discount_order_items.sum{|order_item| order_item[:subtotal].to_i }
 			commission_total = (args[:commission_total] || 0).to_i
+
+			prod_total = [prod_total,discount_total].max
 
 
 			order_offers.each do |order_offer|
@@ -932,21 +939,27 @@ module Aristotle
 
 			transaction_items_attributes.each_with_index do |transaction_item_attributes, index|
 
-				amount = transaction_item_attributes[:amount]
+				amount		= transaction_item_attributes[:amount]
+				discount	= distributed_discounts[index]
+				shipping	= distributed_shipping_costs[index]
+				tax				= distributed_tax[index]
+
+				amount = discount.abs if discount.abs > amount
+
 				transaction_item_attributes.merge!(
+					amount: amount,
 					commission: distributed_commissions[index],
-					misc_discount: distributed_discounts[index].abs,
+					misc_discount: discount.abs,
 					coupon_discount: 0,
-					total_discount: distributed_discounts[index].abs,
-					sub_total: amount + distributed_discounts[index],
-					shipping: distributed_shipping_costs[index],
+					total_discount: discount.abs,
+					sub_total: amount + discount,
+					shipping: shipping,
 					shipping_tax: 0,
-					tax: distributed_tax[index],
+					tax: tax,
 					adjustment: 0,
-					total: amount + distributed_discounts[index] + distributed_shipping_costs[index] + distributed_tax[index],
+					total: amount + discount + shipping + tax,
 				)
 			end
-
 
 			transaction_items_attributes
 		end
