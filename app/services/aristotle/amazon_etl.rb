@@ -273,9 +273,10 @@ module Aristotle
 
 		protected
 
-		def convert_amazon_order_currency( amazon_order )
+		def convert_amazon_order_currency( amazon_order, created_at )
 
 			currency = amazon_order['OrderTotal']['CurrencyCode']
+			created_at = Time.parse( created_at )
 
 			# Save the CurrencyAmount
 			amazon_order['OrderTotal']['CurrencyAmount'] = amazon_order['OrderTotal']['Amount']
@@ -287,8 +288,9 @@ module Aristotle
 			end
 
 			# If Currency is not USD, the convert it, if available
-			if currency != 'USD' && ( currency_rate = CurrencyExchange.find_rate( currency.downcase, 'usd' ) ).present?
+			if currency.downcase != 'usd' && ( currency_rate = CurrencyExchange.find_rate( currency.downcase, 'usd', at: created_at ) ).present?
 
+				amazon_order['ExchangeRate'] = currency_rate.to_f
 				amazon_order['OrderTotal']['Amount'] = amazon_order['OrderTotal']['Amount'].to_f * currency_rate.to_f
 				amazon_order['OrderItems'].each do |order_item|
 					order_item['PromotionDiscount']['Amount'] = order_item['PromotionDiscount']['Amount'].to_f * currency_rate.to_f if order_item['PromotionDiscount']
@@ -426,7 +428,7 @@ module Aristotle
 
 				order['OrderItems'] = order_items
 
-				convert_amazon_order_currency( order ) if order['OrderTotal']
+				convert_amazon_order_currency( order, order['PurchaseDate'] ) if order['OrderTotal']
 
 			end
 
@@ -542,7 +544,7 @@ module Aristotle
 					# 'RefundSettlements' => refund_settlements,
 				}
 
-				convert_amazon_order_currency( refund )
+				convert_amazon_order_currency( refund, refund['RefundDate'] )
 
 
 				refunds << refund
@@ -639,6 +641,8 @@ module Aristotle
 			currency = @default_currency
 			currency = amazon_order['OrderTotal']['CurrencyCode'] if amazon_order['OrderTotal']
 
+			exchange_rate = amazon_order['ExchangeRate']
+
 			amazon_order['OrderItems'].each do |amazon_order_item|
 				quantity 	= (amazon_order_item['QuantityOrdered'] || 0).to_i
 				quantity	= 1 if quantity == 0 && amazon_order['OrderStatus'] == 'Canceled'
@@ -695,6 +699,7 @@ module Aristotle
 						adjustment: 0,
 						total: amount - discount + tax,
 						currency: currency,
+						exchange_rate: exchange_rate,
 					}
 
 					# transaction_item_attributes[:subscription_attributes] = subscription_attributes if subscription_attributes.present?
@@ -714,6 +719,8 @@ module Aristotle
 		def extract_line_items_from_src_refund( amazon_refund, order_transaction_items )
 			return nil unless amazon_refund['OrderItems'].present?
 
+			exchange_rate = amazon_refund['ExchangeRate']
+
 			line_items = []
 
 			amazon_refund['OrderItems'].each do |amazon_refund_order_item|
@@ -726,6 +733,7 @@ module Aristotle
 					quantity: 			transaction_items.count,
 					src_subscription_id: transaction_items.first.src_subscription_id,
 					src_line_item_id:	transaction_items.first.src_line_item_id,
+					exchange_rate:	exchange_rate,
 				}
 
 				EcomEtl.NUMERIC_ATTRIBUTES.each do |attr_name|
