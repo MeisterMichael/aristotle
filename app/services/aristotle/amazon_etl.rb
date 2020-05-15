@@ -384,11 +384,11 @@ module Aristotle
 
 		end
 
-		def extract_billing_location_from_src_order( src_order )
+		def extract_billing_location_from_src_order( amazon_order )
 			nil
 		end
 
-		def extract_shipping_location_from_src_order( src_order )
+		def extract_shipping_location_from_src_order( amazon_order )
 			extract_location_from_src_order( amazon_order )
 		end
 
