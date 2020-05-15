@@ -41,7 +41,7 @@ module Aristotle
 		end
 
 		def self.DENORMALIZED_ORDER_ATTRIBUTES
-			[:src_order_label, :src_order_id, :customer, :location, :channel_partner, :campaign, :source, :wholesale_client]
+			[:src_order_label, :src_order_id, :customer, :location, :billing_location, :shipping_location, :channel_partner, :campaign, :source, :wholesale_client]
 		end
 
 
@@ -516,6 +516,8 @@ module Aristotle
 
 			order.channel_partner		||= self.extract_channel_partner_from_src_order( src_order )
 			order.location					||= self.extract_location_from_src_order( src_order )
+			order.billing_location	||= self.extract_billing_location_from_src_order( src_order )
+			order.shipping_location	||= self.extract_shipping_location_from_src_order( src_order )
 			order.customer					= self.extract_customer_from_src_order( src_order )
 			order.wholesale_client	||= self.extract_wholesale_client_from_src_order( src_order )
 			order.src_order_label		||= self.extract_order_label_from_order( src_order )

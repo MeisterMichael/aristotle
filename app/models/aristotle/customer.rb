@@ -2,6 +2,8 @@ module Aristotle
 	class Customer < ApplicationRecord
 
 		belongs_to :location, required: false
+		belongs_to :billing_location, required: false, class_name: 'Aristotle::Location'
+		belongs_to :shipping_location, required: false, class_name: 'Aristotle::Location'
 		has_many :orders
 		has_many :transaction_items
 

@@ -31,6 +31,8 @@ module Aristotle
 				username: ( ENV["DEV_DATABASE_USERNAME"] || 'postgres' ),
 			}
 
+			@location_address_field = ( args[:location_address_field] || :shipping_address ).to_sym
+
 			@order_type = args[:order_type]
 			@order_source = args[:order_source]
 		end
@@ -442,6 +444,8 @@ module Aristotle
 					data_src: order.data_src,
 					customer: order.customer,
 					location: order.location,
+					billing_location: order.billing_location,
+					shipping_location: order.shipping_location,
 					# subscription: renewed_subscription,
 					# offer: offer,
 					# product: product,
@@ -544,16 +548,28 @@ module Aristotle
 		end
 
 		def extract_location_from_src_order( src_order )
-			shipping_address = src_order[:shipping_address]
+			extract_location_from_src_order_location_address_field( src_order, @location_address_field )
+		end
 
-			location = Location.where( zip: shipping_address[:zip] ).first
+		def extract_billing_location_from_src_order( src_order )
+			extract_location_from_src_order_location_address_field( src_order, :billing_address )
+		end
+
+		def extract_shipping_location_from_src_order( src_order )
+			extract_location_from_src_order_location_address_field( src_order, :shipping_address )
+		end
+
+		def extract_location_from_src_order_location_address_field( src_order, location_address_field )
+			location_address = src_order[location_address_field]
+
+			location = Location.where( zip: location_address[:zip] ).first
 
 			location ||= Location.create(
 				data_src: @data_src,
-				city: shipping_address[:city],
-				state_code: shipping_address[:state] || shipping_address[:geo_state].try(:[],:abbrev),
-				zip: shipping_address[:zip],
-				country_code: shipping_address[:geo_country][:abbrev],
+				city: location_address[:city],
+				state_code: location_address[:state] || location_address[:geo_state].try(:[],:abbrev),
+				zip: location_address[:zip],
+				country_code: location_address[:geo_country][:abbrev],
 			)
 
 
@@ -680,6 +696,8 @@ module Aristotle
 					data_src: subscription_data_src,
 					customer: transaction_item.customer,
 					location: transaction_item.location,
+					billing_location: transaction_item.billing_location,
+					shipping_location: transaction_item.shipping_location,
 					transaction_item: transaction_item,
 					offer: transaction_item.offer,
 					product: transaction_item.product,

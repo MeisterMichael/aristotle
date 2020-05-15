@@ -384,6 +384,14 @@ module Aristotle
 
 		end
 
+		def extract_billing_location_from_src_order( src_order )
+			nil
+		end
+
+		def extract_shipping_location_from_src_order( src_order )
+			extract_location_from_src_order( amazon_order )
+		end
+
 		def extract_offer_from_order_item( amazon_order_item )
 
 			offer_type = 'default'

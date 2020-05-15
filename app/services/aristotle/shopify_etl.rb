@@ -395,6 +395,8 @@ module Aristotle
 				coupon_use.attributes = {
 					customer: order.customer,
 					location: order.location,
+					billing_location: order.billing_location,
+					shipping_location: order.shipping_location,
 					# subscription: renewed_subscription,
 					# offer: offer,
 					# product: product,
@@ -506,9 +508,13 @@ module Aristotle
 		end
 
 		def extract_location_from_src_order( shopify_order )
+			extract_location_from_src_order_by_address_field( shopify_order, :shipping_address ) || extract_location_from_src_order_by_address_field( shopify_order, :billing_address )
+		end
+
+		def extract_location_from_src_order_by_address_field( shopify_order, address_field )
 			# puts "debug extract_location_from_src_order"
 			# puts "debug #{JSON.pretty_generate(shopify_order)}"
-			location_address = shopify_order[:shipping_address] || shopify_order[:billing_address]
+			location_address = shopify_order[address_field]
 			if location_address.blank?
 				# puts "debug extract_location_from_src_order 0.1 nil"
 				return nil
@@ -531,6 +537,14 @@ module Aristotle
 			end
 			# puts "debug extract_location_from_src_order 5"
 			location
+		end
+
+		def extract_billing_location_from_src_order( src_order )
+			extract_location_from_src_order_by_address_field( shopify_order, :billing_address )
+		end
+
+		def extract_shipping_location_from_src_order( src_order )
+			extract_location_from_src_order_by_address_field( shopify_order, :shipping_address )
 		end
 
 		def extract_order_from_src_refund( shopify_refund )
@@ -680,6 +694,8 @@ module Aristotle
 					data_src: @data_src,
 					customer: transaction_item.customer,
 					location: transaction_item.location,
+					billing_location: transaction_item.billing_location,
+					shipping_location: transaction_item.shipping_location,
 					transaction_item: transaction_item,
 					offer: transaction_item.offer,
 					product: transaction_item.product,
