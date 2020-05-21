@@ -161,7 +161,9 @@ module Aristotle
 
 		def pull_and_process_events( args = {} )
 			last_event_id = args[:last_event_id] || Event.where( data_src: @data_src ).order('src_event_id::float ASC').last.try(:src_event_id) || 0
-			max_created_at = 1.hour.ago
+			max_created_at = args[:max_created_at] || 1.day.ago
+
+			excluded_event_names = args[:excluded_event_names] || ['pageview', '404', 'get-client']
 
 			client_query = <<-SQL
 SELECT bunyan_clients.*
@@ -174,12 +176,12 @@ SELECT bunyan_events.*
 FROM bunyan_events
 WHERE bunyan_events.id > :last_event_id
 AND bunyan_events.created_at < :max_created_at
-AND bunyan_events.name NOT IN ('pageview', '404')
+AND bunyan_events.name NOT IN (:excluded_event_names)
 ORDER BY bunyan_events.id ASC
 LIMIT 500
 SQL
 
-			while( ( event_rows = exec_query( event_query, last_event_id: last_event_id, max_created_at: max_created_at ) ).present? ) do
+			while( ( event_rows = exec_query( event_query, last_event_id: last_event_id, max_created_at: max_created_at, excluded_event_names: excluded_event_names ) ).present? ) do
 				client_row_cache = {}
 				event_rows.each do |src_event|
 					src_event.deep_symbolize_keys!
