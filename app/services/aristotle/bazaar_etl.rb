@@ -98,10 +98,24 @@ module Aristotle
 				item[:item] = extract_item( item[:item_type], item[:item_id] )
 				item[:offer] = extract_item( 'Bazaar::Offer', item[:offer_id] ) if item[:offer_id]
 
+			elsif item_type == 'Bazaar::UpsellOffer'
+
+				item = exec_query("SELECT * FROM bazaar_upsell_offers WHERE id = #{item_id}").first.symbolize_keys
+				item[:src_product]	= extract_item( 'Bazaar::Product', item[:src_product_id] ) if item[:src_product_id]
+				item[:src_offer]		= extract_item( 'Bazaar::Offer', item[:src_offer_id] ) if item[:src_offer_id]
+				item[:offer]				= extract_item( 'Bazaar::Offer', item[:offer_id] ) if item[:offer_id]
+
 			elsif item_type == 'Bazaar::Discount'
 
 				item = exec_query("SELECT * FROM bazaar_discounts WHERE id = #{item_id}").first.symbolize_keys
 				item[:discount_items] = exec_query("SELECT * FROM bazaar_discount_items WHERE discount_id = #{item[:id]}").to_a.collect(&:symbolize_keys)
+
+				# item[:item] = extract_item( item[:item_type], item[:item_id] )
+
+			elsif item_type == 'Bazaar::Cart'
+
+				item = exec_query("SELECT * FROM bazaar_carts WHERE id = #{item_id}").first.symbolize_keys
+				item[:cart_offers] = exec_query("SELECT * FROM bazaar_cart_offers WHERE cart_id = #{item_id}").to_a.collect(&:symbolize_keys)
 
 				# item[:item] = extract_item( item[:item_type], item[:item_id] )
 
@@ -862,8 +876,11 @@ module Aristotle
 
 
 		def transform_line_item_to_offer( order_offer, options = {} )
+			transform_offer( order_offer[:offer], options = {} )
+		end
+
+		def transform_offer( src_offer, options = {} )
 			options[:data_src] ||= @data_src
-			src_offer = order_offer[:offer]
 
 			offer_type = 'default'
 			offer_type = 'subscription' if src_offer[:recurring]
@@ -882,6 +899,8 @@ module Aristotle
 					sku: src_offer[:code]
 				},
 			)
+
+			offer
 		end
 
 		def transform_order_items_to_transaction_items_attributes( order_items, order_offers, args = {} )
