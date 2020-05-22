@@ -286,14 +286,17 @@ module Aristotle
 			src_order[:payment_status] = src_order[:payment_status].to_i
 			src_order[:fulfillment_status] = src_order[:fulfillment_status].to_i
 
-			src_order[:billing_address] = exec_query("SELECT * FROM geo_addresses WHERE id = #{src_order[:billing_address_id]}").first.symbolize_keys
-			src_order[:billing_address][:geo_state] = exec_query("SELECT * FROM geo_states WHERE id = #{src_order[:billing_address][:geo_state_id]}").first.try(:symbolize_keys) if src_order[:billing_address][:geo_state_id].present?
-			src_order[:billing_address][:geo_country] = exec_query("SELECT * FROM geo_countries WHERE id = #{src_order[:billing_address][:geo_country_id]}").first.symbolize_keys
+			if src_order[:billing_address_id].present?
+				src_order[:billing_address] = exec_query("SELECT * FROM geo_addresses WHERE id = #{src_order[:billing_address_id]}").first.symbolize_keys
+				src_order[:billing_address][:geo_state] = exec_query("SELECT * FROM geo_states WHERE id = #{src_order[:billing_address][:geo_state_id]}").first.try(:symbolize_keys) if src_order[:billing_address][:geo_state_id].present?
+				src_order[:billing_address][:geo_country] = exec_query("SELECT * FROM geo_countries WHERE id = #{src_order[:billing_address][:geo_country_id]}").first.symbolize_keys
+			end
 
-
-			src_order[:shipping_address] = exec_query("SELECT * FROM geo_addresses WHERE id = #{src_order[:shipping_address_id]}").first.symbolize_keys
-			src_order[:shipping_address][:geo_state] = exec_query("SELECT * FROM geo_states WHERE id = #{src_order[:shipping_address][:geo_state_id]}").first.try(:symbolize_keys) if src_order[:shipping_address][:geo_state_id].present?
-			src_order[:shipping_address][:geo_country] = exec_query("SELECT * FROM geo_countries WHERE id = #{src_order[:shipping_address][:geo_country_id]}").first.symbolize_keys
+			if src_order[:shipping_address_id]
+				src_order[:shipping_address] = exec_query("SELECT * FROM geo_addresses WHERE id = #{src_order[:shipping_address_id]}").first.symbolize_keys
+				src_order[:shipping_address][:geo_state] = exec_query("SELECT * FROM geo_states WHERE id = #{src_order[:shipping_address][:geo_state_id]}").first.try(:symbolize_keys) if src_order[:shipping_address][:geo_state_id].present?
+				src_order[:shipping_address][:geo_country] = exec_query("SELECT * FROM geo_countries WHERE id = #{src_order[:shipping_address][:geo_country_id]}").first.symbolize_keys
+			end
 
 			src_order[:user] = src_order[:customer] = exec_query("SELECT * FROM users WHERE id = #{src_order[:user_id]}").first.symbolize_keys if src_order[:user_id].present?
 			src_order[:wholesale_client] = exec_query("SELECT * FROM wholesale_clients WHERE user_id = #{src_order[:user_id]}").first.try(:symbolize_keys) if src_order[:user_id].present?
