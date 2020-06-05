@@ -358,7 +358,7 @@ module Aristotle
 					if order_item[:offer][:recurring] && order_item[:subscription].blank?
 						order_offer = src_order[:order_offers].find{ |order_offer| order_offer[:offer][:id] == order_item[:offer][:id] }
 
-						order_item[:subscription] ||= order_offer[:subscription]
+						order_item[:subscription] ||= order_offer[:subscription] if order_offer.present?
 					end
 
 				end
