@@ -2,6 +2,7 @@ module Aristotle
 	class BunyanEtl
 
 		def initialize( args = {} )
+			@options = args
 			@data_src = args[:data_src] || 'swell'
 			@bazaar_data_sources = args[:bazaar_data_sources] || ['ClickBank', 'Wholesale', 'Website']
 			@connection_options = args[:connection]
@@ -52,7 +53,8 @@ module Aristotle
 
 			puts "process_src_event	#{src_event[:created_at]}	#{src_event[:name]}"#	#{src_event[:target_obj_type]}	#{src_event[:target_obj_id]}	#{src_event[:target_obj].present?}"
 
-			event = Event.new
+			event = Event.where( data_src: @data_src, src_event_id: src_event_id ).first if @options[:allow_updates]
+			event ||= Event.new
 			event.data_src = @data_src
 			event.src_event_id = src_event_id
 
