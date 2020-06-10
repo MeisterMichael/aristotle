@@ -3,6 +3,7 @@ module Aristotle
 
 		def initialize( args = {} )
 			@data_src = args[:data_src] || 'swell'
+			@bazaar_data_sources = args[:bazaar_data_sources] || ['ClickBank', 'Wholesale', 'Website']
 			@connection_options = args[:connection]
 			# @connection_options ||= ENV['DEFAULT_SWELL_ECOM_ETL_DATABASE_URL']
 			@connection_options ||= {
@@ -87,8 +88,8 @@ module Aristotle
 
 			# event_attributes['channel_partner']
 			# event_attributes['coupon']
-			event.customer = Aristotle::Customer.where( data_src: @data_src, src_customer_id: event.src_user_id.to_s ).first if event.src_user_id.present?
-			event.customer ||= Aristotle::Customer.where( data_src: @data_src, src_customer_id: event.client_user_id.to_s ).first if event.client_user_id.present?
+			event.customer = Aristotle::Customer.where( data_src: @bazaar_data_sources, src_customer_id: event.src_user_id.to_s ).first if event.src_user_id.present?
+			event.customer ||= Aristotle::Customer.where( data_src: @bazaar_data_sources, src_customer_id: event.client_user_id.to_s ).first if event.client_user_id.present?
 			# event_attributes['email_campaign']
 			# event_attributes['location']
 			# event_attributes['offer']
@@ -102,19 +103,19 @@ module Aristotle
 				case event.src_target_obj_type
 				when 'Bazaar::Cart'
 				when 'Bazaar::Offer'
-					event.offer = @bazaar_etl.transform_offer( target_obj )
+					event.offer = Offer.where( data_src: @bazaar_data_sources, src_offer_id: "Bazaar::Offer\##{event.src_target_obj_id}" ).first
 				when 'Bazaar::Order'
-					event.order = Order.where( data_src: @data_src, src_order_id: event.src_target_obj_id ).first
+					event.order = Order.where( data_src: @bazaar_data_sources, src_order_id: event.src_target_obj_id ).first
 				when 'Bazaar::Product'
-					event.product ||= Product.where( data_src: @data_src, src_product_id: event.src_target_obj_id ).first
+					event.product ||= Product.where( data_src: @bazaar_data_sources, src_product_id: "Bazaar::Product\##{event.src_target_obj_id}" ).first
 				when 'Bazaar::Subscription'
-					event.subscription		||= Subscription.where( data_src: @data_src, src_order_id: event.src_target_obj_id ).first
+					event.subscription		||= Subscription.where( data_src: @bazaar_data_sources, src_subscription_id: event.src_target_obj_id ).first
 					event.offer						||= event.subscription.try(:offer)
-					event.offer						||= Offer.where( data_src: @data_src, src_offer_id: target_obj[:offer_id] ).first if target_obj[:offer]
+					event.offer						||= Offer.where( data_src: @bazaar_data_sources, src_offer_id: "Bazaar::Offer\##{target_obj[:offer_id]}" ).first if target_obj[:offer]
 				when 'Bazaar::SubscriptionPlan'
-					event.offer 	||= Offer.where( data_src: @data_src, src_offer_id: target_obj[:offer_id] ).first if target_obj[:offer]
+					event.offer 	||= Offer.where( data_src: @bazaar_data_sources, src_offer_id: "Bazaar::Offer\##{target_obj[:offer_id]}" ).first if target_obj[:offer]
 				when 'Bazaar::UpsellOffer'
-					event.offer 	||= Offer.where( data_src: @data_src, src_offer_id: target_obj[:offer_id] ).first if target_obj[:offer]
+					event.offer 	||= Offer.where( data_src: @bazaar_data_sources, src_offer_id: "Bazaar::Offer\##{target_obj[:offer_id]}" ).first if target_obj[:offer]
 				end
 
 			end
@@ -165,6 +166,10 @@ module Aristotle
 
 			excluded_event_names = args[:excluded_event_names] || ['pageview', '404', 'get-client']
 
+			event_query_filters = ""
+			event_query_filters = event_query_filters + "AND bunyan_events.name ilike '%#{args[:ilike_name]}%'" if args[:ilike_name].present?
+
+
 			client_query = <<-SQL
 SELECT bunyan_clients.*
 FROM bunyan_clients
@@ -177,6 +182,7 @@ FROM bunyan_events
 WHERE bunyan_events.id > :last_event_id
 AND bunyan_events.created_at < :max_created_at
 AND bunyan_events.name NOT IN (:excluded_event_names)
+#{event_query_filters}
 ORDER BY bunyan_events.id ASC
 LIMIT 500
 SQL
