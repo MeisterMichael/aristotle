@@ -3,6 +3,7 @@ module Aristotle
 
 		def initialize( args = {} )
 			@options = args
+			@options[:allow_updates] = true unless @options.key? :allow_updates
 			@data_src = args[:data_src] || 'swell'
 			@bazaar_data_sources = args[:bazaar_data_sources] || ['ClickBank', 'Wholesale', 'Website']
 			@connection_options = args[:connection]
@@ -42,7 +43,9 @@ module Aristotle
 
 		def process_src_event!( src_event, src_client )
 			events = process_src_event( src_event, src_client )
+			puts " -> saving"
 			events.collect(&:save!)
+			puts " -> saving done"
 			events
 		end
 
@@ -53,7 +56,8 @@ module Aristotle
 
 			puts "process_src_event	#{src_event[:created_at]}	#{src_event[:name]}"#	#{src_event[:target_obj_type]}	#{src_event[:target_obj_id]}	#{src_event[:target_obj].present?}"
 
-			event = Event.where( data_src: @data_src, src_event_id: src_event_id ).first if @options[:allow_updates]
+			event = Event.where( data_src: @data_src, src_event_id: src_event_id, name: src_event[:name] ).first if @options[:allow_updates]
+			puts " -> update" if event.present?
 			event ||= Event.new
 			event.data_src = @data_src
 			event.src_event_id = src_event_id
@@ -205,13 +209,17 @@ SQL
 
 					last_event_id = event.src_event_id
 
-					previous_client_events = Event.none
-					previous_client_events = Event.where( data_src: @data_src, src_client_id: event.src_client_id, event_created_at: Time.at(0)..event.created_at ) if event.src_client_id.present?
-					previous_client_events.where( customer: nil ).update_all( customer_id: event.customer.id ) if event.customer.present?
-					previous_client_events.where( order: nil ).update_all( order_id: event.order.id ) if event.order.present?
-					previous_client_events.where( channel_partner: nil ).update_all( channel_partner_id: event.channel_partner.id ) if event.channel_partner.present?
-					previous_client_events.where( location: nil ).update_all( location_id: event.location.id ) if event.location.present?
-					previous_client_events.where( wholesale_client: nil ).update_all( wholesale_client_id: event.wholesale_client.id ) if event.wholesale_client.present?
+					if event.src_client_id.present?
+						puts " -> updating client events"
+						previous_client_events = Event.none
+						previous_client_events = Event.where( data_src: @data_src, src_client_id: event.src_client_id, event_created_at: Time.at(0)..event.created_at ) if event.src_client_id.present?
+						previous_client_events.where( customer: nil ).update_all( customer_id: event.customer.id ) if event.customer.present?
+						# previous_client_events.where( order: nil ).update_all( order_id: event.order.id ) if event.order.present?
+						previous_client_events.where( channel_partner: nil ).update_all( channel_partner_id: event.channel_partner.id ) if event.channel_partner.present?
+						# previous_client_events.where( location: nil ).update_all( location_id: event.location.id ) if event.location.present?
+						# previous_client_events.where( wholesale_client: nil ).update_all( wholesale_client_id: event.wholesale_client.id ) if event.wholesale_client.present?
+						puts " -> updating client events done"
+					end
 
 				end
 			end
