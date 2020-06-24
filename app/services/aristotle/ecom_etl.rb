@@ -625,13 +625,15 @@ module Aristotle
 			order_transaction_items.each do |order_transaction_item|
 
 				transaction_item_attributes = {
-					src_subscription_id: order_transaction_item.src_subscription_id,
-					subscription: 		order_transaction_item.subscription,
-					product:			order_transaction_item.product,
-					offer:				order_transaction_item.offer,
-					offer_type:				order_transaction_item.offer_type,
+					src_subscription_id:		order_transaction_item.src_subscription_id,
+					subscription: 					order_transaction_item.subscription,
+					product:								order_transaction_item.product,
+					offer:									order_transaction_item.offer,
+					offer_type:							order_transaction_item.offer_type,
 					subscription_interval:	order_transaction_item.subscription_interval,
-					src_line_item_id:	order_transaction_item.src_line_item_id,
+					src_line_item_id:				order_transaction_item.src_line_item_id,
+					warehouse:							order_transaction_item.warehouse,
+					merchant_processor:	order_transaction_item.merchant_processor,
 					currency:			order_transaction_item.currency,
 					amount: 			-order_transaction_item.amount,
 					misc_discount: 		-order_transaction_item.misc_discount,
@@ -698,14 +700,16 @@ module Aristotle
 				transaction_items[0..(quantity-1)].each_with_index do |order_transaction_item, index|
 
 					transaction_item_attributes = {
-						src_subscription_id: order_transaction_item.src_subscription_id,
-						subscription: 		order_transaction_item.subscription,
-						product:			order_transaction_item.product,
-						offer:				order_transaction_item.offer,
-						subscription_interval: order_transaction_item.subscription_interval,
-						offer_type:				order_transaction_item.offer_type,
-						src_line_item_id:	order_transaction_item.src_line_item_id,
-						currency:			order_transaction_item.currency,
+						src_subscription_id: 		order_transaction_item.src_subscription_id,
+						subscription: 					order_transaction_item.subscription,
+						product:								order_transaction_item.product,
+						offer:									order_transaction_item.offer,
+						subscription_interval:	order_transaction_item.subscription_interval,
+						offer_type:							order_transaction_item.offer_type,
+						src_line_item_id:				order_transaction_item.src_line_item_id,
+						currency:								order_transaction_item.currency,
+						warehouse:							order_transaction_item.warehouse,
+						merchant_processor:			order_transaction_item.merchant_processor,
 					}
 
 					EcomEtl.NUMERIC_ATTRIBUTES.each do |attribute_name|
@@ -761,14 +765,16 @@ module Aristotle
 				order_transaction_item_attributes = order_transaction_item.attributes.merge({}).symbolize_keys
 
 				transaction_item_attributes = {
-					src_subscription_id: order_transaction_item.src_subscription_id,
-					subscription: 		order_transaction_item.subscription,
-					product:			order_transaction_item.product,
-					offer:				order_transaction_item.offer,
-					subscription_interval: order_transaction_item.subscription_interval,
-					offer_type:				order_transaction_item.offer_type,
-					src_line_item_id:	order_transaction_item.src_line_item_id,
-					currency:			order_transaction_item.currency,
+					src_subscription_id: 		order_transaction_item.src_subscription_id,
+					subscription: 					order_transaction_item.subscription,
+					product:								order_transaction_item.product,
+					offer:									order_transaction_item.offer,
+					subscription_interval:	order_transaction_item.subscription_interval,
+					offer_type:							order_transaction_item.offer_type,
+					src_line_item_id:				order_transaction_item.src_line_item_id,
+					currency:								order_transaction_item.currency,
+					warehouse:							order_transaction_item.warehouse,
+					merchant_processor:			order_transaction_item.merchant_processor,
 				}
 
 				# account for crazy data anomalies.  Work backwards.
