@@ -669,9 +669,7 @@ module Aristotle
 
 
 			# Merge results ***********************
-			merchant_processor						= approved_charge_transactions.first[:provider] if approved_charge_transactions.present?
-
-			state_attributes = timestamps.merge( status: status, merchant_processor: merchant_processor )
+			state_attributes = timestamps.merge( status: status )
 
 			src_order[:_state_attributes] = state_attributes
 		end
@@ -689,7 +687,6 @@ module Aristotle
 				processing_at: src_refund[:created_at],
 				completed_at: src_refund[:created_at],
 				refunded_at: nil,
-				merchant_processor: src_refund[:provider],
 				status: 'completed',
 			}
 
