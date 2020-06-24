@@ -304,6 +304,7 @@ module Aristotle
 			src_order[:shipments] = exec_query("SELECT * FROM bazaar_shipments WHERE order_id = #{src_order[:id]} ORDER BY id ASC").to_a.collect(&:symbolize_keys)
 			src_order[:shipments].each do |shipment|
 				shipment[:status] = shipment[:status].to_i
+				shipment[:warehouse] = exec_query("SELECT * FROM bazaar_warehouses WHERE id = #{shipment[:warehouse_id]}").first.symbolize_keys if shipment[:warehouse_id].present?
 			end
 
 			# first shipped?
@@ -568,6 +569,19 @@ module Aristotle
 			extract_location_from_src_order_location_address_field( src_order, @location_address_field )
 		end
 
+		def extract_transaction_item_attributes_for_src_line_item( src_order, src_line_item_id )
+			# order_offer = src_offer[:order_offers].find {  |order_offer| order_offer[:id].to_s == src_line_item_id }
+			approved_charge_transactions	= ( src_order[:transactions] || [] ).select{|transaction| transaction[:status] == 1 && transaction[:transaction_type] == 1  }
+			completed_shipments						= ( src_order[:shipments] || [] ).select{ |shipment| shipment[:shipped_at].present? && shipment[:warehouse].present? }
+
+			warehouse = Warehouse.create_with( name: completed_shipments.last[:warehouse][:name] ).first_or_create( data_src: @data_src, src_warehouse_id: completed_shipments.last[:warehouse][:id] ) if completed_shipments.present?
+
+			{
+				merchant_processor: (approved_charge_transactions.first || {})[:provider],
+				warehouse: warehouse,
+			}
+		end
+
 		def extract_billing_location_from_src_order( src_order )
 			extract_location_from_src_order_location_address_field( src_order, :billing_address )
 		end
@@ -788,6 +802,7 @@ module Aristotle
 				transaction_item_attributes[:payment_type]		= payment_type
 				# transaction_item_attributes[:src_customer_id]	= src_order[:user_id]
 				transaction_item_attributes.merge!( state_attributes )
+				transaction_item_attributes.merge!( extract_transaction_item_attributes_for_src_line_item( src_order, transaction_item_attributes[:src_line_item_id] ) )
 			end
 
 			# puts JSON.pretty_generate transaction_items_attributes
