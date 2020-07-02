@@ -574,7 +574,12 @@ module Aristotle
 			approved_charge_transactions	= ( src_order[:transactions] || [] ).select{|transaction| transaction[:status] == 1 && transaction[:transaction_type] == 1  }
 			completed_shipments						= ( src_order[:shipments] || [] ).select{ |shipment| shipment[:shipped_at].present? && shipment[:warehouse].present? }
 
-			warehouse = Warehouse.create_with( name: completed_shipments.last[:warehouse][:name] ).first_or_create( data_src: @data_src, src_warehouse_id: completed_shipments.last[:warehouse][:id] ) if completed_shipments.present?
+			if (last_completed_shipment = completed_shipments.last).present?
+				warehouse_name = last_completed_shipment[:warehouse][:name]
+				warehouse_id = last_completed_shipment[:warehouse][:id]
+
+				warehouse = Warehouse.create_with( name: warehouse_name ).where( data_src: @data_src, src_warehouse_id: warehouse_id ).first_or_create
+			end
 
 			{
 				merchant_processor: (approved_charge_transactions.first || {})[:provider],
