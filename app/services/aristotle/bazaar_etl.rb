@@ -99,12 +99,13 @@ module Aristotle
 				item[:offer] = extract_item( 'Bazaar::Offer', item[:offer_id] ) if item[:offer_id]
 
 			elsif item_type == 'Bazaar::UpsellOffer'
-
-				item = exec_query("SELECT * FROM bazaar_upsell_offers WHERE id = #{item_id}").first.symbolize_keys
-				item[:src_product]	= extract_item( 'Bazaar::Product', item[:src_product_id] ) if item[:src_product_id]
-				item[:src_offer]		= extract_item( 'Bazaar::Offer', item[:src_offer_id] ) if item[:src_offer_id]
-				item[:offer]				= extract_item( 'Bazaar::Offer', item[:offer_id] ) if item[:offer_id]
-
+				item = exec_query("SELECT * FROM bazaar_upsell_offers WHERE id = #{item_id}").first
+				if item
+					item = item.symbolize_keys
+					item[:src_product]	= extract_item( 'Bazaar::Product', item[:src_product_id] ) if item[:src_product_id]
+					item[:src_offer]		= extract_item( 'Bazaar::Offer', item[:src_offer_id] ) if item[:src_offer_id]
+					item[:offer]				= extract_item( 'Bazaar::Offer', item[:offer_id] ) if item[:offer_id]
+				end
 			elsif item_type == 'Bazaar::Discount'
 
 				item = exec_query("SELECT * FROM bazaar_discounts WHERE id = #{item_id}").first.symbolize_keys
