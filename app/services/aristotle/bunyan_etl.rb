@@ -198,13 +198,12 @@ AND bunyan_events.name NOT IN (:excluded_event_names)
 #{event_query_filters}
 ORDER BY bunyan_events.id ASC
 LIMIT #{limit}
-OFFSET :offset
 SQL
 
 			page_i = 1
 			while( true ) do
-				puts "Page #{page_i} (offset: #{offset}) - Loading"
-				event_rows = exec_query( event_query, offset: offset, last_event_id: last_event_id, max_created_at: max_created_at, min_created_at: min_created_at, excluded_event_names: excluded_event_names )
+				puts "Page #{page_i} (last_event_id: #{last_event_id}) - Loading"
+				event_rows = exec_query( event_query, last_event_id: last_event_id, max_created_at: max_created_at, min_created_at: min_created_at, excluded_event_names: excluded_event_names )
 				puts "Page #{page_i} - Loaded"
 
 				client_row_cache = {}
@@ -240,6 +239,7 @@ SQL
 						puts " -> updating client events done"
 					end
 
+					last_event_id = src_event[:id]
 				end
 
 				puts "Page #{page_i} - Done"
