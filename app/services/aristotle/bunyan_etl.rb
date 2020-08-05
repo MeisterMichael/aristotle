@@ -220,6 +220,7 @@ SQL
 
 				event_rows.each do |src_event|
 					src_event.deep_symbolize_keys!
+					src_event_id = src_event[:id]
 
 					client_row = client_row_cache[src_event[:client_id]] if src_event[:client_id].present?
 
@@ -239,7 +240,7 @@ SQL
 						puts " -> updating client events done"
 					end
 
-					last_event_id = src_event[:id]
+					last_event_id = src_event_id
 				end
 
 				puts "Page #{page_i} - Done"
@@ -247,6 +248,8 @@ SQL
 				break if event_rows.count < limit
 
 				offset += event_rows.count
+
+				page_i = page_i + 1
 
 			end
 
