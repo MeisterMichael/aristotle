@@ -881,6 +881,7 @@ module Aristotle
 			end
 
 			refersion_properties[:conversion_total] = (refersion_properties[:conversion_total].to_f * 100.0).to_i if refersion_properties[:conversion_total].present?
+			refersion_properties[:commission_total] = (refersion_properties[:commission_total].to_f * 100.0).to_i if refersion_properties[:commission_total].present?
 
 			src_order[:refersion_properties] = refersion_properties
 		end
