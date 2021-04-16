@@ -134,18 +134,22 @@ module Aristotle
 				args[:params][key] = value.strftime('%Y-%m-%dT%H:%M:%S%:z') if value.respond_to? :strftime
 			end
 
-			order_batch_where = "WHERE updated_at <= '#{(args[:updated_at_max] || Time.now).strftime('%Y-%m-%dT%H:%M:%S%:z')}'"
-			order_batch_where = "#{order_batch_where} AND created_at <= '#{args[:created_at_max].strftime('%Y-%m-%dT%H:%M:%S%:z')}'" if args[:created_at_max]
-			order_batch_where = "#{order_batch_where} AND id <= #{args[:id_max]}" if args[:id_max]
-			order_batch_where = "#{order_batch_where} AND type = '#{@order_type}'" if @order_type
-			order_batch_where = "#{order_batch_where} AND source = '#{@order_source}'" if @order_source
-			order_batch_where = "#{order_batch_where} AND updated_at >= '#{args[:updated_at_min].strftime('%Y-%m-%dT%H:%M:%S%:z')}'" if args[:updated_at_min]
-			order_batch_where = "#{order_batch_where} AND created_at >= '#{args[:created_at_min].strftime('%Y-%m-%dT%H:%M:%S%:z')}'" if args[:created_at_min]
-			order_batch_where = "#{order_batch_where} AND id >= #{args[:id_min]}" if args[:id_min]
-			order_batch_where = "#{order_batch_where} AND payment_status = -1" if args[:refunded_only]
+			order_batch_where = "WHERE bazaar_orders.updated_at <= '#{(args[:updated_at_max] || Time.now).utc.strftime('%Y-%m-%dT%H:%M:%S%:z')}'"
+			order_batch_where = "#{order_batch_where} AND created_at <= '#{args[:created_at_max].utc.strftime('%Y-%m-%dT%H:%M:%S%:z')}'" if args[:created_at_max]
+			order_batch_where = "#{order_batch_where} AND bazaar_orders.id <= #{args[:id_max]}" if args[:id_max]
+			order_batch_where = "#{order_batch_where} AND bazaar_orders.type = '#{@order_type}'" if @order_type
+			order_batch_where = "#{order_batch_where} AND bazaar_orders.source = '#{@order_source}'" if @order_source
+			order_batch_where = "#{order_batch_where} AND (bazaar_orders.updated_at >= '#{args[:updated_at_min].strftime('%Y-%m-%dT%H:%M:%S%:z')}' OR '#{args[:updated_at_min].utc.strftime('%Y-%m-%dT%H:%M:%S%:z')}' <= (SELECT MAX(created_at) FROM bazaar_transactions WHERE bazaar_transactions.parent_obj_id = bazaar_orders.id AND bazaar_transactions.parent_obj_type = 'Bazaar::Order'))" if args[:updated_at_min]
+			order_batch_where = "#{order_batch_where} AND bazaar_orders.created_at >= '#{args[:created_at_min].utc.strftime('%Y-%m-%dT%H:%M:%S%:z')}'" if args[:created_at_min]
+			order_batch_where = "#{order_batch_where} AND bazaar_orders.id >= #{args[:id_min]}" if args[:id_min]
+			order_batch_where = "#{order_batch_where} AND bazaar_orders.payment_status = -1" if args[:refunded_only]
 
 			order_ids_query = <<-SQL
-				SELECT id, updated_at FROM bazaar_orders #{order_batch_where} ORDER BY id ASC;
+				SELECT bazaar_orders.id, bazaar_orders.updated_at
+				FROM bazaar_orders
+				#{order_batch_where}
+				GROUP BY bazaar_orders.id
+				ORDER BY bazaar_orders.id ASC;
 			SQL
 			puts order_ids_query
 			order_ids = exec_query(order_ids_query).collect{|row| row['id'] }
@@ -153,7 +157,11 @@ module Aristotle
 			page = 1
 			limit = args[:params][:limit] || 50
 
-			order_id_batches = order_ids.in_groups_of(limit, false).collect{|g| g.join(',')}
+			if order_ids.count < limit
+				order_id_batches = [order_ids.join(',')]
+			else
+				order_id_batches = order_ids.in_groups_of(limit, false).collect{|g| g.join(',')}
+			end
 
 			order_batch_query = <<-SQL
 				SELECT * FROM bazaar_orders WHERE id IN ({order_ids}) ORDER BY id ASC;
@@ -336,6 +344,8 @@ module Aristotle
 
 				order_offer[:subscription] ||= extract_item( 'Bazaar::Subscription', order_offer[:subscription_id] )
 				order_offer[:offer] = extract_item( 'Bazaar::Offer', order_offer[:offer_id] )
+
+				# order_offer[:skus] = exec_query("SELECT bazaar_skus.*, bazaar_offer_skus.quantity FROM bazaar_skus INNER JOIN bazaar_offer_skus ON bazaar_offer_skus.sku_id = bazaar_skus.id WHERE bazaar_offer_skus.start_interval >= #{order_offer[:subscription_interval]} AND bazaar_offer_skus.start_interval + bazaar_offer_skus.max_intervals <= #{order_offer[:subscription_interval]} AND bazaar_offer_skus.status = 1 AND bazaar_offer_skus.offer_id = #{order_offer[:offer_id]}").to_a.collect(&:symbolize_keys)
 			end
 
 
