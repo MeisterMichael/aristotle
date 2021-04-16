@@ -345,7 +345,8 @@ module Aristotle
 				order_offer[:subscription] ||= extract_item( 'Bazaar::Subscription', order_offer[:subscription_id] )
 				order_offer[:offer] = extract_item( 'Bazaar::Offer', order_offer[:offer_id] )
 
-				# order_offer[:skus] = exec_query("SELECT bazaar_skus.*, bazaar_offer_skus.quantity FROM bazaar_skus INNER JOIN bazaar_offer_skus ON bazaar_offer_skus.sku_id = bazaar_skus.id WHERE bazaar_offer_skus.start_interval >= #{order_offer[:subscription_interval]} AND bazaar_offer_skus.start_interval + bazaar_offer_skus.max_intervals <= #{order_offer[:subscription_interval]} AND bazaar_offer_skus.status = 1 AND bazaar_offer_skus.offer_id = #{order_offer[:offer_id]}").to_a.collect(&:symbolize_keys)
+				sku_query = "SELECT bazaar_skus.*, bazaar_offer_skus.quantity FROM bazaar_skus INNER JOIN bazaar_offer_skus ON bazaar_offer_skus.sku_id = bazaar_skus.id WHERE bazaar_offer_skus.start_interval >= #{order_offer[:subscription_interval]} AND (bazaar_offer_skus.max_intervals IS NULL OR bazaar_offer_skus.start_interval + bazaar_offer_skus.max_intervals <= #{order_offer[:subscription_interval]}) AND bazaar_offer_skus.status = 1 AND bazaar_offer_skus.parent_obj_type = 'Bazaar::Offer' AND bazaar_offer_skus.parent_obj_id = #{order_offer[:offer_id]}"
+				order_offer[:skus] = exec_query(sku_query).to_a.collect(&:symbolize_keys)
 			end
 
 
