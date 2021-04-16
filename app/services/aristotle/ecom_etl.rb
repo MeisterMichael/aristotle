@@ -151,6 +151,8 @@ module Aristotle
 
 					end
 
+					puts "refund_transaction_item.changes #{refund_transaction_item.changes.to_json} #{refund_transaction_item.src_order_id}" if refund_transaction_item.changes.present?
+
 					unless refund_transaction_item.save
 						raise Exception.new( "TransactionItem Update Error: #{refund_transaction_item.errors.full_messages}" )
 					end
