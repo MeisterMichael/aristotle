@@ -157,10 +157,12 @@ module Aristotle
 			page = 1
 			limit = args[:params][:limit] || 50
 
-			if order_ids.count < limit
+			if order_ids.count > limit
+				order_id_batches = order_ids.in_groups_of(limit, false).collect{|g| g.join(',')}
+			elsif order_ids.count > 0
 				order_id_batches = [order_ids.join(',')]
 			else
-				order_id_batches = order_ids.in_groups_of(limit, false).collect{|g| g.join(',')}
+				order_id_batches = []
 			end
 
 			order_batch_query = <<-SQL
