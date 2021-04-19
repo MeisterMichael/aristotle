@@ -914,6 +914,12 @@ module Aristotle
 				properties 	= transform_line_item_properties_to_hash( line_item_data )
 				offer 		= transform_line_item_to_offer( line_item_data )
 				tax_lines	= line_item_data[:tax_lines] || []
+				sku = find_or_create_sku(
+					@data_src,
+					src_sku_id: line_item_data[:product_id].to_s,
+					code: line_item_data[:sku],
+					name: line_item_data[:title],
+				)
 
 				subscription_attributes = nil
 
@@ -949,6 +955,7 @@ module Aristotle
 						offer: offer,
 						offer_type: offer.offer_type,
 						product: offer.try(:product),
+						transaction_skus_attributes: [{ sku: sku, sku_value: amount }],
 
 						src_subscription_id: properties[:subscription_id].to_s,
 

@@ -1,11 +1,12 @@
 module Aristotle
-	class TransactionItem < ApplicationRecord
+	class TransactionSku < ApplicationRecord
 
 		belongs_to :channel_partner, required: false
 		belongs_to :customer, required: false
 		belongs_to :location, required: false
 		belongs_to :billing_location, required: false, class_name: 'Aristotle::Location'
 		belongs_to :shipping_location, required: false, class_name: 'Aristotle::Location'
+		belongs_to :sku, required: false
 		belongs_to :offer, required: false
 		belongs_to :product, required: false
 		belongs_to :subscription, required: false
@@ -32,15 +33,15 @@ module Aristotle
 		end
 
 		def self.full_refund
-			data_src_order_id_eqaution = "( aristotle_transaction_items.data_src || ' ' || aristotle_transaction_items.src_order_id )"
+			data_src_order_id_eqaution = "( aristotle_transaction_skus.data_src || ' ' || aristotle_transaction_skus.src_order_id )"
 
-			where( "#{data_src_order_id_eqaution} IN (?)", TransactionItem.unscoped.group(:data_src, :src_order_id).having("SUM(aristotle_transaction_items.sub_total) = 0 AND SUM(ABS(aristotle_transaction_items.sub_total)) > 0").select("distinct #{data_src_order_id_eqaution}") )
+			where( "#{data_src_order_id_eqaution} IN (?)", TransactionItem.unscoped.group(:data_src, :src_order_id).having("SUM(aristotle_transaction_skus.sub_total) = 0 AND SUM(ABS(aristotle_transaction_skus.sub_total)) > 0").select("distinct #{data_src_order_id_eqaution}") )
 		end
 
 		def self.not_full_refund
-			data_src_order_id_eqaution = "( aristotle_transaction_items.data_src || ' ' || aristotle_transaction_items.src_order_id )"
+			data_src_order_id_eqaution = "( aristotle_transaction_skus.data_src || ' ' || aristotle_transaction_skus.src_order_id )"
 
-			where( "NOT( #{data_src_order_id_eqaution} IN (?) )", TransactionItem.unscoped.group(:data_src, :src_order_id).having("SUM(aristotle_transaction_items.sub_total) = 0 AND SUM(ABS(aristotle_transaction_items.sub_total)) > 0").select("distinct #{data_src_order_id_eqaution}") )
+			where( "NOT( #{data_src_order_id_eqaution} IN (?) )", TransactionItem.unscoped.group(:data_src, :src_order_id).having("SUM(aristotle_transaction_skus.sub_total) = 0 AND SUM(ABS(aristotle_transaction_skus.sub_total)) > 0").select("distinct #{data_src_order_id_eqaution}") )
 		end
 
 		def numeric_field_validation( options = {} )
@@ -64,9 +65,10 @@ module Aristotle
 
 		end
 
-		def transaction_skus
-			Aristotle::TransactionSku.where( src_line_item_id: self.src_line_item_id, data_src: self.data_src, src_transaction_id: self.src_transaction_id, offer: self.offer, transaction_type: self.transaction_type )
+		def transaction_item
+			Aristotle::TransactionItem.where( src_line_item_id: self.src_line_item_id, data_src: self.data_src, src_transaction_id: self.src_transaction_id, offer: self.offer, transaction_type: self.transaction_type ).first
 		end
+
 
 	end
 end

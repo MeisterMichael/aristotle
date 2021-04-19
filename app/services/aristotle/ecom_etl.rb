@@ -118,16 +118,56 @@ module Aristotle
 				# puts "  -> Already Refunded"
 				refund_transaction_items.each do |refund_transaction_item|
 
+					refund_transaction_skus = refund_transaction_item.transaction_skus.to_a
 					refund_transaction_item.attributes = state_attributes
+
+					transaction_item_attributes = transaction_items_attributes.find{ |row| row[:src_line_item_id] == refund_transaction_item.src_line_item_id }
+					order_transaction_item = order_transaction_items.find{ |oti| oti.src_line_item_id == refund_transaction_item.src_line_item_id }
+
+					if transaction_item_attributes.present? && order_transaction_item.present?
+
+						transaction_items_attributes.delete_at( transaction_items_attributes.index(transaction_item_attributes) )
+						order_transaction_items.delete_at( order_transaction_items.index(order_transaction_item) )
+
+						refund_transaction_item.channel_partner = order_transaction_item.channel_partner
+						refund_transaction_item.commission = transaction_item_attributes[:commission]
+
+						refund_transaction_skus.each do |refund_transaction_sku|
+							refund_transaction_sku.channel_partner = order_transaction_item.channel_partner
+							refund_transaction_sku.commission = transaction_item_attributes[:commission]
+						end
+
+					else
+
+						message = "src_transaction_id: #{src_transaction_id} "
+						message = "#{message}transaction_item_attributes Not found!!! " unless transaction_item_attributes.present?
+						message = "#{message}order_transaction_item Not found!!! " unless order_transaction_item.present?
+
+						raise Exception.new( "TransactionItem Update Error: #{message}" )
+
+					end
+
+					puts "refund_transaction_item.changes #{refund_transaction_item.changes.to_json} #{refund_transaction_item.src_order_id}" if refund_transaction_item.changes.present?
 
 					unless refund_transaction_item.save
 						raise Exception.new( "TransactionItem Update Error: #{refund_transaction_item.errors.full_messages}" )
 					end
+
+
+					refund_transaction_skus.each do |refund_transaction_sku|
+						puts "refund_transaction_sku.changes #{refund_transaction_sku.changes.to_json} #{refund_transaction_sku.src_order_id}" if refund_transaction_sku.changes.present?
+
+						unless refund_transaction_sku.save
+							raise Exception.new( "TransactionSku Update Error: #{refund_transaction_sku.errors.full_messages}" )
+						end
+					end
+
 				end
 
 			elsif ( order = self.extract_order_from_src_refund( src_refund ) ).present?
 				# puts "  -> Create"
 				refund_transaction_items = []
+				refund_transaction_skus = []
 
 
 				order_transaction_items = TransactionItem.where( data_src: order.data_src, src_transaction_id: order.src_order_id ).to_a
@@ -143,6 +183,7 @@ module Aristotle
 
 				# Create new refund transaction items
 				transaction_items_attributes.each do |transaction_item_attributes|
+					transaction_skus_attributes = transaction_item_attributes.delete(:transaction_skus_attributes)
 
 					refund_transaction_item = TransactionItem.new( default_transaction_item_attributes )
 					refund_transaction_item.attributes = transaction_item_attributes
@@ -153,6 +194,21 @@ module Aristotle
 					end
 
 					refund_transaction_items << refund_transaction_item
+
+					transaction_skus_attributes.each do |transaction_sku_attributes|
+
+						refund_transaction_sku = TransactionSku.new( default_transaction_item_attributes )
+						refund_transaction_sku.attributes = transaction_item_attributes
+						refund_transaction_sku.attributes = transaction_sku_attributes
+						refund_transaction_sku.attributes = state_attributes
+
+						unless refund_transaction_sku.save
+							raise Exception.new( "TransactionItem Create Error: #{refund_transaction_sku.errors.full_messages}" )
+						end
+
+						refund_transaction_skus << refund_transaction_sku
+
+					end
 
 				end
 
@@ -310,10 +366,12 @@ module Aristotle
 			# puts JSON.pretty_generate transaction_items_attributes
 			coupon_uses = self.extract_coupon_uses_from_src_order( src_order, order )
 
+			transaction_skus = []
 			transaction_items = []
 			transaction_items_attributes.each do |transaction_item_attributes|
 
 				subscription_attributes = transaction_item_attributes.delete(:subscription_attributes)
+				transaction_skus_attributes = transaction_item_attributes.delete(:transaction_skus_attributes)
 
 				transaction_item_attributes = default_attributes.merge( transaction_item_attributes )
 
@@ -341,6 +399,17 @@ module Aristotle
 
 
 				transaction_items << transaction_item
+
+				transaction_skus_attributes.each do |transaction_sku_attributes|
+					transaction_sku = TransactionSku.new( transaction_item_attributes )
+					transaction_sku.attributes = transaction_sku_attributes
+
+					unless transaction_sku.save
+						raise Exception.new( "TransactionSku Create Error: #{transaction_sku.errors.full_messages}" )
+					end
+
+					transaction_skus << transaction_sku
+				end
 
 			end
 
@@ -410,6 +479,9 @@ module Aristotle
 
 
 				subscription_attributes = transaction_item_attributes.delete(:subscription_attributes)
+				transaction_skus_attributes = transaction_item_attributes.delete(:transaction_skus_attributes)
+
+				transaction_skus = TransactionSku.where( data_src: transaction_item.data_src, src_transaction_id: transaction_item.src_transaction_id, src_line_item_id: transaction_item.src_line_item_id, offer_id: transaction_item.offer_id )
 
 				subscription = transaction_item.subscription
 
@@ -418,6 +490,18 @@ module Aristotle
 				transaction_item.attributes = transaction_item_attributes
 
 				transaction_item.channel_partner ||= order.channel_partner
+
+				transaction_skus.each do |transaction_sku|
+					transaction_sku_attributes_index = transaction_skus_attributes.index{ |transaction_sku_attributes| transaction_sku_attributes[:sku] == transaction_sku.sku }
+					transaction_sku_attributes = transaction_skus_attributes.delete_at( transaction_sku_attributes_index )
+					raise Exception.new("Could not find attribute match for transaction sku #{transaction_sku.id}") if transaction_sku_attributes.blank?
+
+					transaction_sku.attributes = transaction_sku_attributes
+
+					puts "transaction_sku.changes #{transaction_sku.changes.to_json}" if transaction_sku.changes.present?
+					transaction_sku.save
+
+				end
 
 				if subscription.present?
 
@@ -502,6 +586,52 @@ module Aristotle
 			# puts JSON.pretty_generate transaction_items_attributes
 
 			transaction_items_attributes
+		end
+
+		def extract_transaction_skus_attributes_from_transaction_item_attributes( transaction_item_attributes, sku_object_values )
+			transaction_skus_attributes = []
+
+			sku_value_total = sku_object_values.sum{|item| item[:sku_value] }.to_f
+			sku_ratios = sku_object_values.collect{|item| item[:sku_value] / sku_value_total } if sku_value_total != 0
+			sku_ratios = sku_object_values.collect{|item| 1.0 } if sku_value_total == 0
+
+			sku_distributed_amounts = EcomEtl.distribute_ratios( transaction_item_attributes[:amount], sku_ratios )
+			sku_distributed_shipping_costs = EcomEtl.distribute_ratios( transaction_item_attributes[:shipping], sku_ratios )
+			sku_distributed_commissions = EcomEtl.distribute_ratios( transaction_item_attributes[:commission], sku_ratios )
+
+			sku_distributed_shipping_taxes = EcomEtl.distribute_ratios( transaction_item_attributes[:shipping_tax], sku_ratios )
+			sku_distributed_taxes = EcomEtl.distribute_ratios( transaction_item_attributes[:tax], sku_ratios )
+
+			sku_distributed_coupon_discount = EcomEtl.distribute_ratios( transaction_item_attributes[:coupon_discount], sku_ratios )
+			sku_distributed_misc_discount = EcomEtl.distribute_ratios( transaction_item_attributes[:misc_discount], sku_ratios )
+			sku_distributed_discounts = []
+			sku_distributed_coupon_discount.each_with_index do |coupon_discount,index|
+				sku_distributed_discounts[index] = coupon_discount + sku_distributed_misc_discount[index]
+			end
+
+			sku_distributed_adjustments = EcomEtl.distribute_ratios( transaction_item_attributes[:adjustment], sku_ratios )
+
+
+			sku_object_values.each_with_index do |sku_object_value,sku_value_index|
+				transaction_sku_attributes = transaction_item_attributes.merge({
+					sku:										sku_object_value[:sku],
+					sku_value: 							sku_object_value[:sku_value],
+					amount: 								sku_distributed_amounts[sku_value_index],
+					misc_discount: 					sku_distributed_misc_discount[sku_value_index],
+					coupon_discount: 				sku_distributed_coupon_discount[sku_value_index],
+					total_discount: 				sku_distributed_discounts[sku_value_index],
+					sub_total: 							sku_distributed_amounts[sku_value_index] - sku_distributed_discounts[sku_value_index],
+					shipping: 							sku_distributed_shipping_costs[sku_value_index],
+					shipping_tax: 					sku_distributed_shipping_taxes[sku_value_index],
+					tax: 										sku_distributed_taxes[sku_value_index],
+					adjustment: 						sku_distributed_adjustments[sku_value_index],
+					total: 									sku_distributed_amounts[sku_value_index] - sku_distributed_discounts[sku_value_index] + sku_distributed_shipping_costs[sku_value_index] + sku_distributed_taxes[sku_value_index] + sku_distributed_adjustments[sku_value_index],
+				})
+
+				transaction_skus_attributes << transaction_sku_attributes
+			end
+
+			transaction_skus_attributes
 		end
 
 		def extract_order_from_src_order( src_order, data_src, args = {} )
@@ -619,6 +749,26 @@ module Aristotle
 
 		end
 
+		def find_or_create_sku( data_src, options = {} )
+			raise Exception.new( "src_sku_id is blank for #{options.to_json}" ) if options[:src_sku_id].blank?
+
+			# Find offer by data_src and src_offer_id, or create with offer attributes
+			sku = Sku.where(
+				data_src: data_src,
+				src_sku_id: options[:src_sku_id]
+			).create_with( options ).first_or_create
+
+
+			# raise any fatal errors
+			if sku.errors.present?
+				Rails.logger.info sku.attributes.to_s
+				raise Exception.new( sku.errors.full_messages )
+			end
+
+			sku
+
+		end
+
 		def transform_full_refund_into_transaction_items_attributes( src_refund, order_transaction_items )
 			transaction_items_attributes = []
 
@@ -648,6 +798,9 @@ module Aristotle
 				}
 
 				transaction_item_attributes[:commission] = -order_transaction_item.commission unless order_transaction_item.commission.nil?
+
+				order_transaction_skus = Aristotle::TransactionSku.where( src_line_item_id: order_transaction_item.src_line_item_id, data_src: order_transaction_item.data_src, src_transaction_id: order_transaction_item.src_transaction_id, offer: order_transaction_item.offer )
+				transaction_item_attributes[:transaction_skus_attributes] = extract_transaction_skus_attributes_from_transaction_item_attributes( transaction_item_attributes, order_transaction_skus.collect{|ots| { sku: ots.sku, sku_value: -ots.sku_value } } )
 
 				transaction_items_attributes << transaction_item_attributes
 
@@ -723,6 +876,8 @@ module Aristotle
 
 					# puts "After Corrections"
 					# puts JSON.pretty_generate transaction_item_attributes
+					order_transaction_skus = Aristotle::TransactionSku.where( src_line_item_id: order_transaction_item.src_line_item_id, data_src: order_transaction_item.data_src, src_transaction_id: order_transaction_item.src_transaction_id, offer: order_transaction_item.offer )
+					transaction_item_attributes[:transaction_skus_attributes] = extract_transaction_skus_attributes_from_transaction_item_attributes( transaction_item_attributes, order_transaction_skus.collect{|ots| { sku: ots.sku, sku_value: -ots.sku_value } } )
 
 					transaction_items_attributes << transaction_item_attributes
 
@@ -812,6 +967,9 @@ module Aristotle
 				end
 
 				correct_transaction_item_rounding_errors( transaction_item_attributes )
+
+				order_transaction_skus = Aristotle::TransactionSku.where( src_line_item_id: order_transaction_item.src_line_item_id, data_src: order_transaction_item.data_src, src_transaction_id: order_transaction_item.src_transaction_id, offer: order_transaction_item.offer )
+				transaction_item_attributes[:transaction_skus_attributes] = extract_transaction_skus_attributes_from_transaction_item_attributes( transaction_item_attributes, order_transaction_skus.collect{|ots| { sku: ots.sku, sku_value: -ots.sku_value } } )
 
 				transaction_items_attributes << transaction_item_attributes
 

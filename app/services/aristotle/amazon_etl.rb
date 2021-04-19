@@ -656,6 +656,12 @@ module Aristotle
 				quantity	= 1 if quantity == 0 && amazon_order['OrderStatus'] == 'Canceled'
 
 				offer 		= extract_offer_from_order_item( amazon_order_item )
+				sku 			= find_or_create_sku(
+					@data_src,
+					src_sku_id: amazon_order_item['SellerSKU'].to_s,
+					code: amazon_order_item['ASIN'].to_s,
+					name: amazon_order_item['Title']
+				)
 
 				subscription_attributes = nil
 
@@ -711,6 +717,7 @@ module Aristotle
 					}
 
 					# transaction_item_attributes[:subscription_attributes] = subscription_attributes if subscription_attributes.present?
+					transaction_item_attributes[:transaction_skus_attributes] = [{ sku: sku, sku_value: amount }]
 
 					transaction_items_attributes << transaction_item_attributes
 				end

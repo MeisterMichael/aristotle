@@ -982,7 +982,20 @@ module Aristotle
 						src_subscription_id: src_subscription_id.to_s,
 						subscription_attributes: subscription_attributes,
 						amount: amount,
+						transaction_skus_attributes: [],
 					}
+
+					order_offer[:skus].each do |sku_row|
+						sku	= find_or_create_sku(
+							@data_src,
+							src_sku_id: sku_row[:id].to_s,
+							code: sku_row[:code].to_s,
+							name: sku_row[:name],
+						)
+						sku_row[:quantity].to_i.times do |i|
+							transaction_item_attributes[:transaction_skus_attributes] << { sku: sku, sku_value: sku_row[:sku_value].to_i }
+						end
+					end
 
 					transaction_items_attributes << transaction_item_attributes
 				end
@@ -1019,6 +1032,43 @@ module Aristotle
 					adjustment: 0,
 					total: amount + discount + shipping + tax,
 				)
+
+				sku_value_total = transaction_item_attributes[:transaction_skus_attributes].sum{|item| item[:sku_value] }.to_f
+				sku_ratios = transaction_item_attributes[:transaction_skus_attributes].collect{|item| item[:sku_value] / sku_value_total } if sku_value_total != 0
+				sku_ratios = transaction_item_attributes[:transaction_skus_attributes].collect{|item| 1.0 } if sku_value_total == 0
+
+
+				sku_distributed_amounts = EcomEtl.distribute_ratios( transaction_item_attributes[:amount], sku_ratios )
+				sku_distributed_shipping_costs = EcomEtl.distribute_ratios( transaction_item_attributes[:shipping], sku_ratios )
+				sku_distributed_commissions = EcomEtl.distribute_ratios( transaction_item_attributes[:commission], sku_ratios )
+				sku_distributed_discounts = EcomEtl.distribute_ratios( transaction_item_attributes[:total_discount], sku_ratios )
+				sku_distributed_tax = EcomEtl.distribute_ratios( transaction_item_attributes[:tax], sku_ratios )
+
+
+				transaction_item_attributes[:transaction_skus_attributes].each_with_index do |transaction_sku_attributes, tsa_index|
+					sku_ratio		= sku_ratios[tsa_index]
+
+					sku_amount			= sku_distributed_amounts[tsa_index]
+					sku_commissions	= sku_distributed_commissions[tsa_index]
+					sku_discount		= sku_distributed_discounts[tsa_index]
+					sku_shipping		= sku_distributed_shipping_costs[tsa_index]
+					sku_tax					= sku_distributed_tax[tsa_index]
+
+
+					transaction_sku_attributes.merge!(
+						amount: sku_amount,
+						commission: sku_commissions,
+						misc_discount: sku_discount,
+						coupon_discount: 0,
+						total_discount: sku_discount,
+						sub_total: sku_amount - sku_discount,
+						shipping: sku_shipping,
+						shipping_tax: 0,
+						tax: sku_tax,
+						adjustment: 0,
+						total: sku_amount - sku_discount + sku_shipping + sku_tax,
+					)
+				end
 			end
 
 			transaction_items_attributes
