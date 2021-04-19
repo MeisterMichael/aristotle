@@ -167,8 +167,15 @@ module Aristotle
 
 
 		def pull_and_process_events( args = {} )
-			last_event_id = args[:last_event_id] || Event.where( data_src: @data_src ).order('src_event_id::float ASC').last.try(:src_event_id) || 0
+			limit = 500
+			offset = 0
+
+			last_event_id = args[:last_event_id]
+			last_event_id ||= Event.where( data_src: @data_src ).maximum('src_event_id::bigint')
+			last_event_id ||= 0
+
 			max_created_at = args[:max_created_at] || 1.day.ago
+			min_created_at = args[:min_created_at] || Time.at(0)
 
 			excluded_event_names = args[:excluded_event_names] || ['pageview', '404', 'get-client']
 
@@ -179,35 +186,47 @@ module Aristotle
 			client_query = <<-SQL
 SELECT bunyan_clients.*
 FROM bunyan_clients
-WHERE bunyan_clients.id = :client_id
+WHERE bunyan_clients.id IN (:client_ids)
 SQL
 
 			event_query = <<-SQL
 SELECT bunyan_events.*
 FROM bunyan_events
 WHERE bunyan_events.id > :last_event_id
-AND bunyan_events.created_at < :max_created_at
+AND bunyan_events.created_at BETWEEN :min_created_at AND :max_created_at
 AND bunyan_events.name NOT IN (:excluded_event_names)
 #{event_query_filters}
 ORDER BY bunyan_events.id ASC
-LIMIT 500
+LIMIT #{limit}
 SQL
 
-			while( ( event_rows = exec_query( event_query, last_event_id: last_event_id, max_created_at: max_created_at, excluded_event_names: excluded_event_names ) ).present? ) do
+			page_i = 1
+			while( true ) do
+				puts "Page #{page_i} (last_event_id: #{last_event_id}) - Loading"
+				event_rows = exec_query( event_query, last_event_id: last_event_id, max_created_at: max_created_at, min_created_at: min_created_at, excluded_event_names: excluded_event_names )
+				puts "Page #{page_i} - Loaded"
+
 				client_row_cache = {}
+
+				client_ids = event_rows.collect{|src_event| src_event['client_id'] }.uniq.select(&:present?)
+				if client_ids.present?
+					client_rows = exec_query( client_query, client_ids: client_ids )
+					client_rows.each do |client_row|
+						client_row.deep_symbolize_keys!
+						client_row_cache[client_row[:id]] = client_row
+					end
+				end
+
+
 				event_rows.each do |src_event|
 					src_event.deep_symbolize_keys!
+					src_event_id = src_event[:id]
 
-					client_row = client_row_cache[src_event[:client_id]]
-					client_row ||= exec_query( client_query, client_id: src_event[:client_id] ).first
-					client_row_cache[src_event[:client_id]] = client_row
-					client_row.try(:deep_symbolize_keys!)
+					client_row = client_row_cache[src_event[:client_id]] if src_event[:client_id].present?
 
 
 					events = process_src_event!( src_event, client_row )
 					event = events.first
-
-					last_event_id = event.src_event_id
 
 					if event.src_client_id.present?
 						puts " -> updating client events"
@@ -221,7 +240,17 @@ SQL
 						puts " -> updating client events done"
 					end
 
+					last_event_id = src_event_id
 				end
+
+				puts "Page #{page_i} - Done"
+
+				break if event_rows.count < limit
+
+				offset += event_rows.count
+
+				page_i = page_i + 1
+
 			end
 
 		end

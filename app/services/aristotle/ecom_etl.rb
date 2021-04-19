@@ -111,9 +111,19 @@ module Aristotle
 
 			refund_transaction_items = TransactionItem.refund.where( data_src: data_src, src_transaction_id: src_transaction_id ).to_a
 
+			order = self.extract_order_from_src_refund( src_refund )
+			unless order.present?
+				puts "Unable to find order for src_transaction_id #{src_transaction_id}"
+				return refund_transaction_items
+			end
+
 			state_attributes = self.extract_state_attributes_from_src_refund( src_refund )
 
-			# if refund already exists, update the state attributes
+			order_transaction_items = TransactionItem.where( data_src: order.data_src, src_transaction_id: order.src_order_id ).to_a
+
+			transaction_items_attributes = self.transform_refund_into_transaction_items_attributes( src_refund, order_transaction_items )
+
+			# if refund already exists, update the state attributes AND channel partner/commission
 			if refund_transaction_items.present?
 				# puts "  -> Already Refunded"
 				refund_transaction_items.each do |refund_transaction_item|
@@ -164,17 +174,10 @@ module Aristotle
 
 				end
 
-			elsif ( order = self.extract_order_from_src_refund( src_refund ) ).present?
+			else
 				# puts "  -> Create"
 				refund_transaction_items = []
 				refund_transaction_skus = []
-
-
-				order_transaction_items = TransactionItem.where( data_src: order.data_src, src_transaction_id: order.src_order_id ).to_a
-
-				transaction_items_attributes = self.transform_refund_into_transaction_items_attributes( src_refund, order_transaction_items )
-
-				# puts JSON.pretty_generate transaction_items_attributes
 
 				# set defaults and denormatized order data for all refunds
 				# transaction items
@@ -226,10 +229,6 @@ module Aristotle
 				order_transaction_items.each do |order_transaction_item|
 					order_transaction_item.update( order_refund_updates )
 				end
-
-			else
-
-				puts "Unable to find order for src_transaction_id #{src_transaction_id}"
 
 			end
 
@@ -421,8 +420,8 @@ module Aristotle
 
 			order = self.extract_order_from_src_order( src_order, data_src )
 
-			denormalized_order_attributes 	= EcomEtl.extract_attributes_from_model( order, EcomEtl.DENORMALIZED_ORDER_ATTRIBUTES - [:channel_partner] )
-			order_state_attributes 			= EcomEtl.extract_attributes_from_model( order, EcomEtl.STATE_ATTRIBUTES )
+			denormalized_order_attributes	= EcomEtl.extract_attributes_from_model( order, EcomEtl.DENORMALIZED_ORDER_ATTRIBUTES - [:channel_partner] )
+			order_state_attributes				= EcomEtl.extract_attributes_from_model( order, EcomEtl.STATE_ATTRIBUTES )
 
 			default_attributes = denormalized_order_attributes.merge( order_state_attributes )
 
