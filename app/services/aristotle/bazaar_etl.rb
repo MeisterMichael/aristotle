@@ -351,7 +351,7 @@ module Aristotle
 				SELECT bazaar_skus.*, bazaar_offer_skus.quantity
 				FROM bazaar_skus
 					INNER JOIN bazaar_offer_skus ON bazaar_offer_skus.sku_id = bazaar_skus.id
-				WHERE bazaar_offer_skus.start_interval >= #{order_offer[:subscription_interval]}
+				WHERE bazaar_offer_skus.start_interval <= #{order_offer[:subscription_interval]}
 				AND (bazaar_offer_skus.max_intervals IS NULL OR bazaar_offer_skus.start_interval + bazaar_offer_skus.max_intervals <= #{order_offer[:subscription_interval]})
 				AND bazaar_offer_skus.status = 1
 				AND bazaar_offer_skus.parent_obj_type = 'Bazaar::Offer'
