@@ -996,6 +996,8 @@ module Aristotle
 					offer_type = offer.offer_type
 					offer_type = 'renewal' if offer.subscription? && subscription_interval > 1
 
+					transaction_skus_attributes = []
+
 					transaction_item_attributes = {
 						src_line_item_id: order_offer[:id].to_s,
 						offer: offer,
@@ -1005,21 +1007,21 @@ module Aristotle
 						src_subscription_id: src_subscription_id.to_s,
 						subscription_attributes: subscription_attributes,
 						amount: amount,
-						transaction_skus_attributes: [],
 					}
 
-					transaction_skus = TransactionSku.where( data_src: @data_src, offer: offer, transaction_type: 'charge', src_line_item_id: order_offer[:id].to_s )
+
+					transaction_skus = TransactionSku.where( data_src: @data_src, offer: offer, transaction_type: 'charge', src_line_item_id: order_offer[:id].to_s ).order( sku_id: :asc )
+
 					if transaction_skus.present?
 
 						# until such time as deleted at timestamps are added to the offer_skus
 						# table, we have to rely on local history to add skus, if they have
 						# already been added that is.
 						transaction_skus.each do |transaction_sku|
-							transaction_item_attributes[:transaction_skus_attributes] << { sku: transaction_sku.sku, sku_value: transaction_sku.sku_value }
+							transaction_skus_attributes << { sku: transaction_sku.sku, sku_value: transaction_sku.sku_value }
 						end
 
 					else
-
 						order_offer[:skus].each do |sku_row|
 							sku	= find_or_create_sku(
 								@data_src,
@@ -1028,15 +1030,20 @@ module Aristotle
 								name: sku_row[:name],
 							)
 							sku_row[:quantity].to_i.times do |i|
-								transaction_item_attributes[:transaction_skus_attributes] << { sku: sku, sku_value: sku_row[:sku_value].to_i }
+								transaction_skus_attributes << { sku: sku, sku_value: sku_row[:sku_value].to_i }
 							end
 						end
 
 					end
 
+					transaction_skus_attributes = transaction_skus_attributes.sort_by{ |row| row[:sku].id }
+					transaction_item_attributes[:transaction_skus_attributes] = transaction_skus_attributes
+
 					transaction_items_attributes << transaction_item_attributes
 				end
 			end
+
+			transaction_items_attributes = transaction_items_attributes.sort_by{ |row| row[:line_item_id].to_i }
 
 
 			ratios = transaction_items_attributes.collect{|item| item[:amount] / prod_total } if prod_total != 0
