@@ -1008,16 +1008,30 @@ module Aristotle
 						transaction_skus_attributes: [],
 					}
 
-					order_offer[:skus].each do |sku_row|
-						sku	= find_or_create_sku(
-							@data_src,
-							src_sku_id: sku_row[:id].to_s,
-							code: sku_row[:code].to_s,
-							name: sku_row[:name],
-						)
-						sku_row[:quantity].to_i.times do |i|
-							transaction_item_attributes[:transaction_skus_attributes] << { sku: sku, sku_value: sku_row[:sku_value].to_i }
+					transaction_skus = TransactionSku.where( data_src: @data_src, offer: offer, transaction_type: 'charge', src_line_item_id: order_offer[:id].to_s )
+					if transaction_skus.present?
+
+						# until such time as deleted at timestamps are added to the offer_skus
+						# table, we have to rely on local history to add skus, if they have
+						# already been added that is.
+						transaction_skus.each do |transaction_sku|
+							transaction_item_attributes[:transaction_skus_attributes] << { sku: transaction_sku.sku, sku_value: transaction_sku.sku_value }
 						end
+
+					else
+
+						order_offer[:skus].each do |sku_row|
+							sku	= find_or_create_sku(
+								@data_src,
+								src_sku_id: sku_row[:id].to_s,
+								code: sku_row[:code].to_s,
+								name: sku_row[:name],
+							)
+							sku_row[:quantity].to_i.times do |i|
+								transaction_item_attributes[:transaction_skus_attributes] << { sku: sku, sku_value: sku_row[:sku_value].to_i }
+							end
+						end
+
 					end
 
 					transaction_items_attributes << transaction_item_attributes
