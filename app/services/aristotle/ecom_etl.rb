@@ -365,7 +365,6 @@ module Aristotle
 			# puts JSON.pretty_generate transaction_items_attributes
 			coupon_uses = self.extract_coupon_uses_from_src_order( src_order, order )
 
-			transaction_skus = []
 			transaction_items = []
 			transaction_items_attributes.each do |transaction_item_attributes|
 
@@ -399,17 +398,7 @@ module Aristotle
 
 				transaction_items << transaction_item
 
-				transaction_skus_attributes.each do |transaction_sku_attributes|
-					transaction_sku = TransactionSku.new( transaction_item_attributes )
-					transaction_sku.attributes = transaction_sku_attributes
-
-					unless transaction_sku.save
-						raise Exception.new( "TransactionSku Create Error: #{transaction_sku.errors.full_messages}" )
-					end
-
-					transaction_skus << transaction_sku
-				end
-
+				transaction_skus = process_order_transaction_skus( transaction_item, transaction_item_attributes, transaction_skus_attributes )
 			end
 
 			transaction_items
@@ -423,7 +412,9 @@ module Aristotle
 			denormalized_order_attributes	= EcomEtl.extract_attributes_from_model( order, EcomEtl.DENORMALIZED_ORDER_ATTRIBUTES - [:channel_partner] )
 			order_state_attributes				= EcomEtl.extract_attributes_from_model( order, EcomEtl.STATE_ATTRIBUTES )
 
-			default_attributes = denormalized_order_attributes.merge( order_state_attributes )
+			default_attributes = { data_src: data_src, src_transaction_id: order.src_order_id }
+			default_attributes = default_attributes.merge( denormalized_order_attributes )
+			default_attributes = default_attributes.merge( order_state_attributes )
 
 			transaction_items = args[:transaction_items] || TransactionItem.where( data_src: data_src, src_transaction_id: order.src_order_id )
 
@@ -480,8 +471,6 @@ module Aristotle
 				subscription_attributes = transaction_item_attributes.delete(:subscription_attributes)
 				transaction_skus_attributes = transaction_item_attributes.delete(:transaction_skus_attributes)
 
-				transaction_skus = TransactionSku.where( data_src: transaction_item.data_src, src_transaction_id: transaction_item.src_transaction_id, src_line_item_id: transaction_item.src_line_item_id, offer_id: transaction_item.offer_id )
-
 				subscription = transaction_item.subscription
 
 
@@ -489,18 +478,6 @@ module Aristotle
 				transaction_item.attributes = transaction_item_attributes
 
 				transaction_item.channel_partner ||= order.channel_partner
-
-				transaction_skus.each do |transaction_sku|
-					transaction_sku_attributes_index = transaction_skus_attributes.index{ |transaction_sku_attributes| transaction_sku_attributes[:sku] == transaction_sku.sku }
-					transaction_sku_attributes = transaction_skus_attributes.delete_at( transaction_sku_attributes_index )
-					raise Exception.new("Could not find attribute match for transaction sku #{transaction_sku.id}") if transaction_sku_attributes.blank?
-
-					transaction_sku.attributes = transaction_sku_attributes
-
-					puts "transaction_sku.changes #{transaction_sku.changes.to_json}" if transaction_sku.changes.present?
-					transaction_sku.save
-
-				end
 
 				if subscription.present?
 
@@ -537,10 +514,61 @@ module Aristotle
 				end
 
 
+				process_order_transaction_skus( transaction_item, transaction_item_attributes, transaction_skus_attributes )
+
 			end
 
 			transaction_items
 
+		end
+
+		def process_order_transaction_skus( transaction_item, transaction_item_attributes, transaction_skus_attributes, args = {} )
+
+			transaction_skus = transaction_item.transaction_skus
+
+			if transaction_skus.present?
+
+				# puts "process_order_transaction_skus UPDATE src_line_item_id: #{transaction_item.src_line_item_id}, data_src: #{transaction_item.data_src}, src_transaction_id: #{transaction_item.src_transaction_id}, offer: #{transaction_item.offer}, transaction_type: #{transaction_item.transaction_type}"
+				# puts " -> #{transaction_skus_attributes.count}"
+
+				transaction_skus.each do |transaction_sku|
+
+					# puts " -> sku_id: #{transaction_sku.sku_id},  src_line_item_id: #{transaction_sku.src_line_item_id}, data_src: #{transaction_sku.data_src}, src_transaction_id: #{transaction_sku.src_transaction_id}, offer: #{transaction_sku.offer}, transaction_type: #{transaction_sku.transaction_type}"
+
+					transaction_sku_attributes_index = transaction_skus_attributes.index{ |transaction_sku_attributes| transaction_sku_attributes[:sku] == transaction_sku.sku }
+					transaction_sku_attributes = transaction_skus_attributes.delete_at( transaction_sku_attributes_index )
+					raise Exception.new("Could not find attribute match for transaction sku #{transaction_sku.id}") if transaction_sku_attributes.blank?
+
+					transaction_sku.attributes = transaction_sku_attributes
+
+					puts "transaction_sku.changes #{transaction_sku.changes.to_json}" if transaction_sku.changes.present?
+
+					unless transaction_sku.save
+						raise Exception.new( "TransactionSku Update Error: #{transaction_sku.errors.full_messages}" )
+					end
+
+				end
+
+			else
+				# puts "process_order_transaction_skus CREATE src_line_item_id: #{transaction_item.src_line_item_id}, data_src: #{transaction_item.data_src}, src_transaction_id: #{transaction_item.src_transaction_id}, offer: #{transaction_item.offer}, transaction_type: #{transaction_item.transaction_type}"
+				# puts " -> #{transaction_skus_attributes.count}"
+				transaction_skus = []
+
+				transaction_skus_attributes.each do |transaction_sku_attributes|
+					transaction_sku = TransactionSku.new( transaction_item_attributes )
+					transaction_sku.attributes = transaction_sku_attributes
+
+					unless transaction_sku.save
+						raise Exception.new( "TransactionSku Create Error: #{transaction_sku.errors.full_messages}" )
+					end
+
+					# puts " -> sku_id: #{transaction_sku.sku_id},  src_line_item_id: #{transaction_sku.src_line_item_id}, data_src: #{transaction_sku.data_src}, src_transaction_id: #{transaction_sku.src_transaction_id}, offer: #{transaction_sku.offer}, transaction_type: #{transaction_sku.transaction_type}"
+
+					transaction_skus << transaction_sku
+				end
+			end
+
+			transaction_skus
 		end
 
 		def transform_refund_into_transaction_items_attributes( src_refund, order_transaction_items )
