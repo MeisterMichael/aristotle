@@ -204,6 +204,7 @@ module Aristotle
 						refund_transaction_sku.attributes = transaction_item_attributes
 						refund_transaction_sku.attributes = transaction_sku_attributes
 						refund_transaction_sku.attributes = state_attributes
+						refund_transaction_sku.transaction_item = refund_transaction_item
 
 						unless refund_transaction_sku.save
 							raise Exception.new( "TransactionItem Create Error: #{refund_transaction_sku.errors.full_messages}" )
@@ -557,6 +558,7 @@ module Aristotle
 				transaction_skus_attributes.each do |transaction_sku_attributes|
 					transaction_sku = TransactionSku.new( transaction_item_attributes )
 					transaction_sku.attributes = transaction_sku_attributes
+					transaction_sku.transaction_item = transaction_item
 
 					unless transaction_sku.save
 						raise Exception.new( "TransactionSku Create Error: #{transaction_sku.errors.full_messages}" )

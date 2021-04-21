@@ -12,6 +12,8 @@ module Aristotle
 		belongs_to :warehouse, required: false
 		belongs_to :wholesale_client, required: false
 
+		has_many :transaction_skus
+
 		enum offer_type: { 'subscription' => 1, 'default' => 0, 'renewal' => 2 }
 		enum payment_type: { 'no_payment_type' => 0, 'credit_card' => 1, 'paypal' => 2, 'amazon_payments' => 3, 'cash' => 4, 'cheque' => 5, 'bitpay' => 6 }
 		enum status: { 'cancelled' => -2, 'failed' => -1, 'pending' => 0, 'pre_ordered' => 1, 'on_hold' => 8, 'processing' => 9, 'completed' => 10, 'refunded' => 11 }
@@ -62,10 +64,6 @@ module Aristotle
 				end
 			end
 
-		end
-
-		def transaction_skus
-			Aristotle::TransactionSku.where( src_line_item_id: self.src_line_item_id, data_src: self.data_src, src_transaction_id: self.src_transaction_id, offer: self.offer, transaction_type: self.transaction_type )
 		end
 
 	end

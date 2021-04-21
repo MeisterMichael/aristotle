@@ -1009,18 +1009,17 @@ module Aristotle
 						amount: amount,
 					}
 
-
-					transaction_skus = TransactionSku.where( data_src: @data_src, offer: offer, transaction_type: 'charge', src_line_item_id: order_offer[:id].to_s ).order( sku_id: :asc )
+					transaction_skus = TransactionSku.where( data_src: @data_src, offer: offer, transaction_type: 'charge', src_line_item_id: order_offer[:id].to_s ).group(:sku_id,:sku_value).select(:sku_id,:sku_value,'COUNT(*) / COUNT(distinct transaction_item_id) as quantity').order( sku_id: :asc )
 
 					if transaction_skus.present?
-
 						# until such time as deleted at timestamps are added to the offer_skus
 						# table, we have to rely on local history to add skus, if they have
 						# already been added that is.
 						transaction_skus.each do |transaction_sku|
-							transaction_skus_attributes << { sku: transaction_sku.sku, sku_value: transaction_sku.sku_value }
+							transaction_sku.quantity.times do
+								transaction_skus_attributes << { sku: transaction_sku.sku, sku_value: transaction_sku.sku_value }
+							end
 						end
-
 					else
 						order_offer[:skus].each do |sku_row|
 							sku	= find_or_create_sku(

@@ -66,6 +66,7 @@ class SkuMigration < ActiveRecord::Migration[5.1]
 			t.bigint "shipping_location_id"
 			t.string "merchant_processor"
 			t.bigint "warehouse_id"
+			t.bigint "transaction_item_id"
 			t.bigint "sku_id"
 			t.index ["billing_location_id"], name: "index_aristotle_transaction_skus_on_billing_location_id"
 			t.index ["campaign"], name: "index_aristotle_transaction_skus_on_campaign"
@@ -95,6 +96,8 @@ class SkuMigration < ActiveRecord::Migration[5.1]
 			t.index ["transaction_type"], name: "index_aristotle_transaction_skus_on_transaction_type"
 			t.index ["warehouse_id"], name: "index_aristotle_transaction_skus_on_warehouse_id"
 			t.index ["wholesale_client_id"], name: "index_aristotle_transaction_skus_on_wholesale_client_id"
+			t.index ["transaction_item_id"], name: "index_aristotle_transaction_skus_on_transaction_item_id"
+
 		end
 
 	end
