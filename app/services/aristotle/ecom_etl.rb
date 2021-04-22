@@ -207,7 +207,7 @@ module Aristotle
 						refund_transaction_sku.transaction_item = refund_transaction_item
 
 						unless refund_transaction_sku.save
-							raise Exception.new( "TransactionItem Create Error: #{refund_transaction_sku.errors.full_messages}" )
+							raise Exception.new( "TransactionSku Create Error: #{refund_transaction_sku.errors.full_messages}" )
 						end
 
 						refund_transaction_skus << refund_transaction_sku
