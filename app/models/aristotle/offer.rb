@@ -5,6 +5,7 @@ module Aristotle
 
 		belongs_to :product, required: false
 		has_many :offer_set_offers
+		has_many :offer_skus
 
 		enum offer_type: { 'subscription' => 1, 'default' => 0, 'renewal' => 2 }
 

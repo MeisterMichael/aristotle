@@ -539,7 +539,9 @@ module Aristotle
 					transaction_sku_attributes_index = transaction_skus_attributes.index{ |transaction_sku_attributes| transaction_sku_attributes[:sku] == transaction_sku.sku }
 					transaction_sku_attributes = transaction_skus_attributes.delete_at( transaction_sku_attributes_index )
 					raise Exception.new("Could not find attribute match for transaction sku #{transaction_sku.id}") if transaction_sku_attributes.blank?
-
+					# puts "   -> #{transaction_item_attributes.to_json}"
+					# puts "   -> #{transaction_sku_attributes.to_json}"
+					transaction_sku.attributes = transaction_item_attributes
 					transaction_sku.attributes = transaction_sku_attributes
 
 					puts "transaction_sku.changes #{transaction_sku.changes.to_json}" if transaction_sku.changes.present?
@@ -739,6 +741,61 @@ module Aristotle
 			# end
 
 			transaction_item_attributes
+		end
+
+		def transaction_item_skus_from_offer( offer, options = {} )
+			time = options[:time] || Time.now
+
+			transaction_skus_attributes = []
+			offer.offer_skus.where( ":time >= started_at AND ( ended_at IS NULL OR :time <= ended_at )", time: time ).order('sku_id ASC').each do |offer_sku|
+				offer_sku.sku_quantity.times do
+					transaction_skus_attributes << { sku: offer_sku.sku, sku_value: offer_sku.sku_value }
+				end
+			end
+
+			transaction_skus_attributes
+		end
+
+		def distribute_transaction_item_values_to_skus( transaction_item_attributes )
+
+			sku_value_total = transaction_item_attributes[:transaction_skus_attributes].sum{|item| item[:sku_value] }.to_f
+			sku_ratios = transaction_item_attributes[:transaction_skus_attributes].collect{|item| item[:sku_value].to_f / sku_value_total.to_f } if sku_value_total != 0
+			sku_ratios = transaction_item_attributes[:transaction_skus_attributes].collect{|item| 1.0 } if sku_value_total == 0
+
+
+			sku_distributed_amounts = EcomEtl.distribute_ratios( transaction_item_attributes[:amount], sku_ratios )
+			sku_distributed_shipping_costs = EcomEtl.distribute_ratios( transaction_item_attributes[:shipping], sku_ratios )
+			sku_distributed_commissions = EcomEtl.distribute_ratios( transaction_item_attributes[:commission] || 0, sku_ratios )
+			sku_distributed_discounts = EcomEtl.distribute_ratios( transaction_item_attributes[:total_discount], sku_ratios )
+			sku_distributed_tax = EcomEtl.distribute_ratios( transaction_item_attributes[:tax], sku_ratios )
+
+
+			transaction_item_attributes[:transaction_skus_attributes].each_with_index do |transaction_sku_attributes, tsa_index|
+				sku_ratio		= sku_ratios[tsa_index]
+
+				sku_amount			= sku_distributed_amounts[tsa_index]
+				sku_commissions	= sku_distributed_commissions[tsa_index]
+				sku_discount		= sku_distributed_discounts[tsa_index]
+				sku_shipping		= sku_distributed_shipping_costs[tsa_index]
+				sku_tax					= sku_distributed_tax[tsa_index]
+
+
+				transaction_sku_attributes.merge!(
+					amount: sku_amount,
+					commission: sku_commissions,
+					misc_discount: sku_discount,
+					coupon_discount: 0,
+					total_discount: sku_discount,
+					sub_total: sku_amount - sku_discount,
+					shipping: sku_shipping,
+					shipping_tax: 0,
+					tax: sku_tax,
+					adjustment: 0,
+					total: sku_amount - sku_discount + sku_shipping + sku_tax,
+				)
+			end
+
+			transaction_item_attributes[:transaction_skus_attributes]
 		end
 
 		def find_or_create_offer( data_src, options = {} )

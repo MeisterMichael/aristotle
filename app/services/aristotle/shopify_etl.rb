@@ -770,7 +770,7 @@ module Aristotle
 			commission_total 	= (refersion_properties['commission'] || 0.0).to_f
 			discounts_total 	= shopify_order[:total_discounts]
 			# puts "debug extract_transaction_items_attributes_from_src_order 3"
-			transaction_items_attributes = self.transform_line_items_to_transaction_items_attributes( shopify_order[:line_items], src_customer_id: shopify_order[:customer][:id], shipping_cost_total: shipping_cost_total, shipping_tax_total: shipping_tax_total, commission_total: commission_total, discounts_total: discounts_total )
+			transaction_items_attributes = self.transform_line_items_to_transaction_items_attributes( shopify_order, shopify_order[:line_items], src_customer_id: shopify_order[:customer][:id], shipping_cost_total: shipping_cost_total, shipping_tax_total: shipping_tax_total, commission_total: commission_total, discounts_total: discounts_total )
 			# puts "debug extract_transaction_items_attributes_from_src_order 4"
 			transaction_items_attributes.each do |transaction_item_attributes|
 				transaction_item_attributes[:transaction_type] ||= 'charge'
@@ -898,7 +898,7 @@ module Aristotle
 			hash
 		end
 
-		def transform_line_items_to_transaction_items_attributes( line_items, args = {} )
+		def transform_line_items_to_transaction_items_attributes( shopify_order, line_items, args = {} )
 			# puts "debug transform_line_items_to_transaction_items_attributes"
 			transaction_items_attributes = []
 
@@ -914,12 +914,6 @@ module Aristotle
 				properties 	= transform_line_item_properties_to_hash( line_item_data )
 				offer 		= transform_line_item_to_offer( line_item_data )
 				tax_lines	= line_item_data[:tax_lines] || []
-				sku = find_or_create_sku(
-					@data_src,
-					src_sku_id: line_item_data[:product_id].to_s,
-					code: line_item_data[:sku],
-					name: line_item_data[:title],
-				)
 
 				subscription_attributes = nil
 
@@ -972,6 +966,19 @@ module Aristotle
 						adjustment: 0,
 						total: amount - discount + tax,
 					}
+
+					if offer.offer_skus.present?
+						transaction_item_attributes[:transaction_skus_attributes] = transaction_item_skus_from_offer( offer, time: shopify_order[:created_at] )
+						distribute_transaction_item_values_to_skus( transaction_item_attributes )
+					else
+						sku = find_or_create_sku(
+							@data_src,
+							src_sku_id: line_item_data[:product_id].to_s,
+							code: line_item_data[:sku],
+							name: line_item_data[:title],
+						)
+						transaction_item_attributes[:transaction_skus_attributes] = [{ sku: sku, sku_value: amount }]
+					end
 
 					transaction_item_attributes[:subscription_attributes] = subscription_attributes if subscription_attributes.present?
 

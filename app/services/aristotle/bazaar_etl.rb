@@ -1076,42 +1076,7 @@ module Aristotle
 					total: amount + discount + shipping + tax,
 				)
 
-				sku_value_total = transaction_item_attributes[:transaction_skus_attributes].sum{|item| item[:sku_value] }.to_f
-				sku_ratios = transaction_item_attributes[:transaction_skus_attributes].collect{|item| item[:sku_value] / sku_value_total } if sku_value_total != 0
-				sku_ratios = transaction_item_attributes[:transaction_skus_attributes].collect{|item| 1.0 } if sku_value_total == 0
-
-
-				sku_distributed_amounts = EcomEtl.distribute_ratios( transaction_item_attributes[:amount], sku_ratios )
-				sku_distributed_shipping_costs = EcomEtl.distribute_ratios( transaction_item_attributes[:shipping], sku_ratios )
-				sku_distributed_commissions = EcomEtl.distribute_ratios( transaction_item_attributes[:commission], sku_ratios )
-				sku_distributed_discounts = EcomEtl.distribute_ratios( transaction_item_attributes[:total_discount], sku_ratios )
-				sku_distributed_tax = EcomEtl.distribute_ratios( transaction_item_attributes[:tax], sku_ratios )
-
-
-				transaction_item_attributes[:transaction_skus_attributes].each_with_index do |transaction_sku_attributes, tsa_index|
-					sku_ratio		= sku_ratios[tsa_index]
-
-					sku_amount			= sku_distributed_amounts[tsa_index]
-					sku_commissions	= sku_distributed_commissions[tsa_index]
-					sku_discount		= sku_distributed_discounts[tsa_index]
-					sku_shipping		= sku_distributed_shipping_costs[tsa_index]
-					sku_tax					= sku_distributed_tax[tsa_index]
-
-
-					transaction_sku_attributes.merge!(
-						amount: sku_amount,
-						commission: sku_commissions,
-						misc_discount: sku_discount,
-						coupon_discount: 0,
-						total_discount: sku_discount,
-						sub_total: sku_amount - sku_discount,
-						shipping: sku_shipping,
-						shipping_tax: 0,
-						tax: sku_tax,
-						adjustment: 0,
-						total: sku_amount - sku_discount + sku_shipping + sku_tax,
-					)
-				end
+				distribute_transaction_item_values_to_skus( transaction_item_attributes )
 			end
 
 			transaction_items_attributes
