@@ -979,7 +979,7 @@ module Aristotle
 				end
 			end
 
-			sub_total = transaction_items_attributes.sum{|item| item[:sub_total]}
+			sub_total = transaction_items_attributes.sum{|item| item[:sub_total]}.to_f
 			ratios = transaction_items_attributes.collect{|item| item[:sub_total] / sub_total } if sub_total != 0
 			ratios = transaction_items_attributes.collect{|item| 1.0 } if sub_total == 0
 

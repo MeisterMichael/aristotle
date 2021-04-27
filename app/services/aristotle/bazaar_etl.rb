@@ -968,7 +968,7 @@ module Aristotle
 			discount_total = discount_order_items.sum{|order_item| order_item[:subtotal].to_i }
 			commission_total = (args[:commission_total] || 0).to_i
 
-			prod_total = [prod_total,discount_total].max
+			prod_total = [prod_total,discount_total].max.to_f
 
 
 			order_offers.each do |order_offer|
