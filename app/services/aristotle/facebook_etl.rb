@@ -24,7 +24,7 @@ module Aristotle
 		def pull_marketing_spends( args={} )
 			rows = self.extract_marketing_account_insights( args )
 			# puts JSON.pretty_generate rows
-			# die()
+			# die() if rows.present?
 
 			rows.each do |row|
 				start_at = Time.parse( "#{row['date_start']} UTC" ).beginning_of_day
@@ -63,7 +63,7 @@ module Aristotle
 
 		def extract_marketing_account_insights( args={} )
 			end_at 		= args[:end_at] || Time.now
-			start_at 	= args[:start_at] || (30.days.ago + 1.day)
+			start_at 	= args[:start_at] || (14.days.ago + 1.day)
 
 			start_at 	= start_at.strftime('%Y-%m-%d') unless start_at.is_a? String
 			end_at 		= end_at.strftime('%Y-%m-%d') unless end_at.is_a? String
@@ -85,8 +85,18 @@ module Aristotle
 				ad_account_name = SRC_ACCOUNT_NAME_AMALGAMATION[ad_account.name] || ad_account.name
 				puts "  -> #{ad_account_name}"
 
+				insight_options = {
+					# action_attribution_windows: %w(7d_click 1d_view),
+					# use_unified_attribution_setting: true,
+					fields: fields,
+					time_range: { 'since' => start_at, 'until' => end_at },
+					level: level,
+					time_increment: '1'
+				}
+				puts "    ( #{insight_options.to_json} )"
 
-				insights = ad_account.insights( fields: fields, time_range: { 'since' => start_at, 'until' => end_at }, level: level, time_increment: 1 )
+
+				insights = ad_account.insights( insight_options )
 
 				# insights.each do |insight_row|
 				# 	puts JSON.pretty_generate insight_row
