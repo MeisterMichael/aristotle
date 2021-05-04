@@ -872,6 +872,7 @@ module Aristotle
 					warehouse:							order_transaction_item.warehouse,
 					merchant_processor:			order_transaction_item.merchant_processor,
 					currency:								order_transaction_item.currency,
+					commission:							0,
 					amount: 								-order_transaction_item.amount,
 					misc_discount: 					-order_transaction_item.misc_discount,
 					coupon_discount: 				-order_transaction_item.coupon_discount,
