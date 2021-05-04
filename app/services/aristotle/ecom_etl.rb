@@ -684,7 +684,7 @@ module Aristotle
 
 			sku_distributed_amounts = EcomEtl.distribute_ratios( transaction_item_attributes[:amount], sku_ratios )
 			sku_distributed_shipping_costs = EcomEtl.distribute_ratios( transaction_item_attributes[:shipping], sku_ratios )
-			sku_distributed_commissions = EcomEtl.distribute_ratios( transaction_item_attributes[:commission], sku_ratios )
+			sku_distributed_commissions = EcomEtl.distribute_ratios( transaction_item_attributes[:commission] || 0, sku_ratios )
 
 			sku_distributed_shipping_taxes = EcomEtl.distribute_ratios( transaction_item_attributes[:shipping_tax], sku_ratios )
 			sku_distributed_taxes = EcomEtl.distribute_ratios( transaction_item_attributes[:tax], sku_ratios )
