@@ -18,7 +18,7 @@ module Aristotle
 		def initialize( args = {} )
 			@data_src = 'Facebook'
 			@marketing_accounts = args[:marketing_accounts] || (ENV['FACEBOOK_MARKETING_ACCOUNTS'] || '').split(',')
-
+			@insights_window = args[:insights_window] || 7.days
 		end
 
 		def pull_marketing_spends( args={} )
@@ -62,8 +62,28 @@ module Aristotle
 		protected
 
 		def extract_marketing_account_insights( args={} )
-			end_at 		= args[:end_at] || Time.now
-			start_at 	= args[:start_at] || (14.days.ago + 1.day)
+			rows = nil
+			if args[:start_at].present?
+				end_at 		= args[:end_at] || Time.now
+				start_at 	= args[:start_at] || (end_at - @insights_window)
+				rows = extract_marketing_account_insights_window( start_at, end_at )
+			else
+				initial_end_at = Time.now
+
+				rows = []
+				(0..3).each do |index|
+					start_at = initial_end_at - ((index + 1) * @insights_window)
+					end_at = initial_end_at - ( index * @insights_window )
+					# puts "interval index #{index}: #{start_at}, #{end_at}"
+
+					rows = extract_marketing_account_insights_window( start_at, end_at ) + rows
+				end
+			end
+
+			rows
+		end
+
+		def extract_marketing_account_insights_window( start_at, end_at, args={} )
 
 			start_at 	= start_at.strftime('%Y-%m-%d') unless start_at.is_a? String
 			end_at 		= end_at.strftime('%Y-%m-%d') unless end_at.is_a? String
