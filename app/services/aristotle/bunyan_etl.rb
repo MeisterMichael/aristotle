@@ -181,6 +181,7 @@ module Aristotle
 
 			event_query_filters = ""
 			event_query_filters = event_query_filters + "AND bunyan_events.name ilike '%#{args[:ilike_name]}%'" if args[:ilike_name].present?
+			event_query_filters = event_query_filters + "AND bunyan_events.category = '#{args[:category]}'" if args[:category].present?
 
 
 			client_query = <<-SQL
