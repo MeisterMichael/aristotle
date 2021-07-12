@@ -1,9 +1,6 @@
 module Aristotle
 	class FacebookEtl
 
-		FAILURE_COOLDOWN_SECONDS = 120.000
-		MAX_FAILURE_ATTEMPTS = 5
-
 		FACEBOOK_NUMERIC_FIELDS					= %w( spend clicks unique_clicks )
 		FACEBOOK_NUMERIC_COUNT_FIELDS			= %w( clicks unique_clicks )
 		FACEBOOK_NUMERIC_VALUE_FIELDS			= %w( spend )
@@ -22,8 +19,6 @@ module Aristotle
 			@data_src = 'Facebook'
 			@marketing_accounts = args[:marketing_accounts] || (ENV['FACEBOOK_MARKETING_ACCOUNTS'] || '').split(',')
 			@insights_window = args[:insights_window] || 5.days
-			@cooldown_seconds = 0.000
-			@cooldown_seconds = args[:api_rest_seconds] if args[:api_rest_seconds].present?
 		end
 
 		def pull_marketing_spends( args={} )
@@ -120,74 +115,59 @@ module Aristotle
 				}
 				puts "    ( #{insight_options.to_json} )"
 
-				attempt = 0
-				while( true ) do
-					attempt = attempt + 1
-					puts "        attempt #{attempt}"
-					account_rows = []
+				account_rows = []
 
-					begin
-						#FacebookAds::ServerError: Please reduce the amount of data you're asking for, then retry your request
-						insights = ad_account.insights( insight_options )
+				begin
+					#FacebookAds::ServerError: Please reduce the amount of data you're asking for, then retry your request
+					insights = ad_account.insights( insight_options )
 
-						# insights.each do |insight_row|
-						# 	puts JSON.pretty_generate insight_row
-						# end
+					# insights.each do |insight_row|
+					# 	puts JSON.pretty_generate insight_row
+					# end
 
-						insights.each do |insight_row|
+					insights.each do |insight_row|
 
-							# puts JSON.pretty_generate insight_row
-							# die()
+						# puts JSON.pretty_generate insight_row
+						# die()
 
-							row = { 'date_start' => insight_row['date_start'], 'date_stop' => insight_row['date_stop'] } #{ 'account_id' => ad_account_id, 'account_name' => ad_account.name }
+						row = { 'date_start' => insight_row['date_start'], 'date_stop' => insight_row['date_stop'] } #{ 'account_id' => ad_account_id, 'account_name' => ad_account.name }
 
-							row['action_types'] = (insight_row['actions'] || []).collect{|ar| ar['action_type'] }
+						row['action_types'] = (insight_row['actions'] || []).collect{|ar| ar['action_type'] }
 
-							FACEBOOK_LEVEL_FIELDS.each do |field|
-								row[field] = insight_row[field] if insight_row[field].present?
-							end
-
-							FACEBOOK_NUMERIC_FIELDS.each do |field|
-								row[field] = insight_row[field].to_f
-							end
-
-							FACEBOOK_ACTION_NUMERIC_FIELDS.each do |action_field|
-								row['purchase.'+action_field] = 0.0
-								row['link_click.'+action_field] = 0.0
-								row['landing_page_view.'+action_field] = 0.0
-
-								(insight_row[action_field] || []).each do |action_field_row|
-									row['purchase.'+action_field] = action_field_row['value'].to_f if ['offsite_conversion.fb_pixel_purchase'].include? action_field_row['action_type']
-									row['link_click.'+action_field] = action_field_row['value'].to_f if ['link_click'].include? action_field_row['action_type']
-									row['landing_page_view.'+action_field] = action_field_row['value'].to_f if ['landing_page_view'].include? action_field_row['action_type']
-								end
-							end
-
-							row['account_name']	= ad_account_name
-							row['account_id']	= ad_account_id
-
-							account_rows << row
-
+						FACEBOOK_LEVEL_FIELDS.each do |field|
+							row[field] = insight_row[field] if insight_row[field].present?
 						end
 
-						if @cooldown_seconds.present? && @cooldown_seconds.to_i > 0
-							sleep @cooldown_seconds
+						FACEBOOK_NUMERIC_FIELDS.each do |field|
+							row[field] = insight_row[field].to_f
 						end
 
-						puts "        attempt #{attempt} success"
-						break
-					rescue Exception => e
-						raise e if attempt >= MAX_FAILURE_ATTEMPTS
-						puts "        attempt #{attempt} failure occurred while querying insights (#{e.message})... cooling down #{FAILURE_COOLDOWN_SECONDS}"
-						sleep FAILURE_COOLDOWN_SECONDS
+						FACEBOOK_ACTION_NUMERIC_FIELDS.each do |action_field|
+							row['purchase.'+action_field] = 0.0
+							row['link_click.'+action_field] = 0.0
+							row['landing_page_view.'+action_field] = 0.0
+
+							(insight_row[action_field] || []).each do |action_field_row|
+								row['purchase.'+action_field] = action_field_row['value'].to_f if ['offsite_conversion.fb_pixel_purchase'].include? action_field_row['action_type']
+								row['link_click.'+action_field] = action_field_row['value'].to_f if ['link_click'].include? action_field_row['action_type']
+								row['landing_page_view.'+action_field] = action_field_row['value'].to_f if ['landing_page_view'].include? action_field_row['action_type']
+							end
+						end
+
+						row['account_name']	= ad_account_name
+						row['account_id']	= ad_account_id
+
+						account_rows << row
+
 					end
+
+					rows = rows + account_rows
+					puts "        success"
+				rescue Exception => e
+					puts "        failure occurred while querying insights (#{e.message})"
+					raise e unless e.message.include? "Please reduce the amount of data you're asking for, then retry your request"
 				end
 
-				rows = rows + account_rows
-
-				if @cooldown_seconds.present? && @cooldown_seconds.to_i > 0
-					sleep @cooldown_seconds
-				end
 			end
 
 
