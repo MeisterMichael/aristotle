@@ -62,22 +62,20 @@ module Aristotle
 		protected
 
 		def extract_marketing_account_insights( args={} )
-			rows = nil
-			if args[:start_at].present?
-				end_at 		= args[:end_at] || Time.now
-				start_at 	= args[:start_at] || (end_at - @insights_window)
-				rows = extract_marketing_account_insights_window( start_at, end_at )
-			else
-				initial_end_at = Time.now
+			end_at 		= args[:end_at] || Time.now
+			start_at 	= args[:start_at] || (end_at - @insights_window * 4)
 
-				rows = []
-				(0..3).each do |index|
-					start_at = initial_end_at - ((index + 1) * @insights_window)
-					end_at = initial_end_at - ( index * @insights_window )
-					# puts "interval index #{index}: #{start_at}, #{end_at}"
+			num_insight_windows = ( ( end_at - start_at ) / @insights_window ).ceil
 
-					rows = extract_marketing_account_insights_window( start_at, end_at ) + rows
-				end
+
+			rows = []
+			(0..num_insight_windows).each do |index|
+				interval_start_at = end_at - ((index + 1) * @insights_window)
+				interval_start_at = [ interval_start_at, start_at ].max
+				interval_end_at = end_at - ( index * @insights_window )
+				puts "\n\n\ninterval #{index+1}/#{num_insight_windows}: #{interval_start_at}, #{interval_end_at}"
+
+				rows = extract_marketing_account_insights_window( interval_start_at, interval_end_at ) + rows
 			end
 
 			rows
