@@ -69,7 +69,7 @@ module Aristotle
 
 
 			rows = []
-			(0..num_insight_windows).each do |index|
+			(0..(num_insight_windows-1)).each do |index|
 				interval_start_at = end_at - ((index + 1) * @insights_window)
 				interval_start_at = [ interval_start_at, start_at ].max
 				interval_end_at = end_at - ( index * @insights_window )
