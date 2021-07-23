@@ -57,7 +57,11 @@ module Aristotle
 			puts "process_src_event	#{src_event[:created_at]}	#{src_event[:name]}"#	#{src_event[:target_obj_type]}	#{src_event[:target_obj_id]}	#{src_event[:target_obj].present?}"
 
 			event = Event.where( data_src: @data_src, src_event_id: src_event_id, name: src_event[:name] ).first if @options[:allow_updates]
-			puts " -> update" if event.present?
+			if event.present?
+				puts " -> update"
+			else
+				puts " -> new"
+			end
 			event ||= Event.new
 			event.data_src = @data_src
 			event.src_event_id = src_event_id
@@ -122,6 +126,9 @@ module Aristotle
 					event.offer 	||= Offer.where( data_src: @bazaar_data_sources, src_offer_id: "Bazaar::Offer\##{target_obj[:offer_id]}" ).first if target_obj[:offer]
 				when 'Bazaar::UpsellOffer'
 					event.offer 	||= Offer.where( data_src: @bazaar_data_sources, src_offer_id: "Bazaar::Offer\##{target_obj[:offer_id]}" ).first if target_obj[:offer]
+				when 'BazaarMediaRelation'
+					event.product	||= Product.where( data_src: @bazaar_data_sources, src_product_id: "Bazaar::Product\##{target_obj[:bazaar_media_to][:product_id]}" ).first if target_obj[:bazaar_media_to][:product_id]
+					event.offer 	||= Offer.where( data_src: @bazaar_data_sources, src_offer_id: "Bazaar::Offer\##{target_obj[:bazaar_media_to][:non_recurring_offer_id]}" ).first if target_obj[:bazaar_media_to][:non_recurring_offer_id]
 				end
 
 			end
