@@ -120,6 +120,20 @@ module Aristotle
 
 				# item[:item] = extract_item( item[:item_type], item[:item_id] )
 
+			elsif item_type == 'BazaarMediaRelation'
+
+				item = exec_query("SELECT * FROM bazaar_media_relations WHERE id = #{item_id}").first.symbolize_keys
+				item[:bazaar_media_from]	= extract_item( 'BazaarMedia', item[:bazaar_media_from_id] )
+				item[:bazaar_media_to]		= extract_item( 'BazaarMedia', item[:bazaar_media_to_id] )
+
+			elsif item_type == 'BazaarMedia'
+
+				item = exec_query("SELECT * FROM bazaar_media WHERE id = #{item_id}").first.symbolize_keys
+				item[:product]							= extract_item( 'Bazaar::Product', item[:product_id] )
+				item[:recurring_offer]			= extract_item( 'Bazaar::Offer', item[:recurring_offer_id] )
+				item[:non_recurring_offer]	= extract_item( 'Bazaar::Offer', item[:non_recurring_offer_id] )
+
+
 			end
 
 			item
