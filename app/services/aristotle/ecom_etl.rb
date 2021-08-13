@@ -238,6 +238,36 @@ module Aristotle
 		end
 
 
+		def process_review( src_review, data_src, event = nil )
+			product		= transform_src_review_to_product( src_review )
+			offer			= transform_src_review_to_offer( src_review )
+			customer	= extract_customer_from_src_review( src_review )
+
+			review = Review.where( data_src: data_src, src_review_id: src_review[:id] ).first
+			review ||= Review.new
+			review.data_src	= data_src
+			review.product	= product
+			review.offer		= offer
+			review.customer	= customer
+			review.location	= customer.location
+
+			review.src_review_id	= src_review[:id]
+			review.status					= src_review[:status]
+			review.referrer_src		= src_review[:referrer_src]
+			review.reviewed_at		= src_review[:created_at]
+			review.rating					= src_review[:rating]
+			review.review_words		= src_review[:review_words]
+
+			# puts review.attributes.to_json
+
+			unless review.save
+				raise Exception.new( "Review Create Error: #{review.errors.full_messages}" )
+			end
+
+			review
+		end
+
+
 		def transaction_item_skus_from_offer( offer, options = {} )
 			time = options[:time] || Time.now
 
@@ -833,6 +863,28 @@ module Aristotle
 			end
 
 			offer
+
+		end
+
+		def find_or_create_product( data_src, options = {} )
+			product_attributes	= options[:product_attributes] || {}
+			product_attributes[:data_src] ||= data_src
+
+			raise Exception.new( "src_product_id is blank for #{options.to_json}" ) if product_attributes[:src_product_id].blank?
+
+			product ||= Product.where(
+				data_src: data_src,
+				src_product_id: product_attributes[:src_product_id]
+			).first
+			product ||= Product.create( product_attributes )
+
+			# raise any fatal errors
+			if product.errors.present?
+				Rails.logger.info product.attributes.to_s
+				raise Exception.new( product.errors.full_messages )
+			end
+
+			product
 
 		end
 

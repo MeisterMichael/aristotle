@@ -212,6 +212,82 @@ module Aristotle
 			puts "Finished"
 		end
 
+		def pull_and_process_reviews( args = {} )
+			review_ids = []
+
+			args[:params] ||= {}
+			args[:params].each do |key, value|
+				args[:params][key] = value.strftime('%Y-%m-%dT%H:%M:%S%:z') if value.respond_to? :strftime
+			end
+
+			review_batch_where = "WHERE bazaar_reviews.updated_at <= '#{(args[:updated_at_max] || Time.now).utc.strftime('%Y-%m-%dT%H:%M:%S%:z')}'"
+			review_batch_where = "#{review_batch_where} AND bazaar_reviews.type = 'ProductReview'"
+			review_batch_where = "#{review_batch_where} AND bazaar_reviews.created_at <= '#{args[:created_at_max].utc.strftime('%Y-%m-%dT%H:%M:%S%:z')}'" if args[:created_at_max]
+			review_batch_where = "#{review_batch_where} AND bazaar_reviews.id <= #{args[:id_max]}" if args[:id_max]
+			review_batch_where = "#{review_batch_where} AND (bazaar_reviews.updated_at >= '#{args[:updated_at_min].strftime('%Y-%m-%dT%H:%M:%S%:z')}' OR '#{args[:updated_at_min].utc.strftime('%Y-%m-%dT%H:%M:%S%:z')}' <= (SELECT MAX(created_at) FROM bazaar_transactions WHERE bazaar_transactions.parent_obj_id = bazaar_reviews.id AND bazaar_transactions.parent_obj_type = 'Bazaar::Order'))" if args[:updated_at_min]
+			review_batch_where = "#{review_batch_where} AND bazaar_reviews.created_at >= '#{args[:created_at_min].utc.strftime('%Y-%m-%dT%H:%M:%S%:z')}'" if args[:created_at_min]
+			review_batch_where = "#{review_batch_where} AND bazaar_reviews.id >= #{args[:id_min]}" if args[:id_min]
+
+			review_ids_query = <<-SQL
+				SELECT bazaar_reviews.id, bazaar_reviews.updated_at
+				FROM scuttlebutt_posts as bazaar_reviews
+				#{review_batch_where}
+				GROUP BY bazaar_reviews.id
+				ORDER BY bazaar_reviews.id ASC;
+			SQL
+			puts review_ids_query
+			review_ids = exec_query(review_ids_query).collect{|row| row['id'] }
+
+			page = 1
+			limit = args[:params][:limit] || 50
+
+			if review_ids.count > limit
+				review_id_batches = review_ids.in_groups_of(limit, false).collect{|g| g.join(',')}
+			elsif review_ids.count > 0
+				review_id_batches = [review_ids.join(',')]
+			else
+				review_id_batches = []
+			end
+
+			review_batch_query = <<-SQL
+				SELECT * FROM scuttlebutt_posts as bazaar_reviews WHERE id IN ({review_ids}) ORDER BY id ASC;
+			SQL
+
+
+			review_id_batches.each_with_index do |review_ids, index|
+				page = (index + 1)
+				puts "Loading Next Page #{page} / #{review_id_batches.count}"
+
+				page_query = review_batch_query.gsub('{review_ids}', review_ids)
+				puts page_query
+
+				src_reviews = exec_query( page_query )
+
+				puts "Processing Page #{page} / #{review_id_batches.count} (count #{src_reviews.count})"
+
+				src_reviews.each do |src_review|
+					src_review.symbolize_keys!
+
+					src_review[:properties] = parse_hstore_string( src_review[:properties] ) if src_review[:properties].present?
+					src_review[:properties] ||= {}
+
+					src_review[:status] = src_review[:status].to_i
+					src_review[:product] = extract_item( 'Bazaar::Product', src_review[:parent_obj_id] ) if src_review[:parent_obj_id].present?
+					src_review[:user] = src_review[:customer] = exec_query("SELECT * FROM users WHERE id = #{src_review[:user_id]}").first.symbolize_keys if src_review[:user_id].present?
+					src_review[:referrer_src] = src_review[:properties][:referrer_source]
+					src_review[:review_words] = src_review[:content].to_s.scan(/[\w-]+/).size
+
+					# puts JSON.pretty_generate( src_review )
+					process_review( src_review, @data_src, 'pull' )
+				end
+
+				puts "Completed Page #{page} / #{review_id_batches.count}"
+
+			end
+
+			puts "Finished"
+		end
+
 		def pull_and_process_subscriptions_updates( args = {} )
 			args[:params] ||= {}
 			args[:params].each do |key, value|
@@ -584,6 +660,31 @@ module Aristotle
 			if customer.errors.present?
 				Rails.logger.info customer.attributes.to_s
 				raise Exception.new( customer.errors.full_messages )
+			end
+
+			customer
+
+		end
+
+		def extract_customer_from_src_review( src_review, args = {} )
+			src_customer = src_review[:customer]
+
+			if src_customer.present?
+				customer = Aristotle::Customer.where( email: src_customer[:email] ).first
+
+				customer ||= Aristotle::Customer.create(
+					data_src: @data_src,
+					src_customer_id: src_customer[:id],
+					name: "#{src_customer[:first_name]} #{src_customer[:last_name]}".strip,
+					login: src_customer[:email],
+					email: src_customer[:email],
+					src_created_at: src_customer[:created_at],
+				)
+
+				if customer.errors.present?
+					Rails.logger.info customer.attributes.to_s
+					raise Exception.new( customer.errors.full_messages )
+				end
 			end
 
 			customer
@@ -963,6 +1064,21 @@ module Aristotle
 			offer
 		end
 
+		def transform_product( src_product, options = {} )
+			options[:data_src] ||= @data_src
+
+			product = find_or_create_product(
+				options[:data_src],
+				product_attributes: {
+					src_product_id: "Bazaar::Product\##{src_product[:id]}",
+					sku: src_product[:sku],
+					name: src_product[:title]
+				},
+			)
+
+			product
+		end
+
 		def transform_order_items_to_transaction_items_attributes( order_items, order_offers, args = {} )
 			transaction_items_attributes = []
 
@@ -1094,6 +1210,14 @@ module Aristotle
 			end
 
 			transaction_items_attributes
+		end
+
+		def transform_src_review_to_offer( src_review, options = {} )
+			nil
+		end
+
+		def transform_src_review_to_product( src_review, options = {} )
+			transform_product( src_review[:product], options )
 		end
 
 	end
