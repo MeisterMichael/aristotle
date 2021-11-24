@@ -35,6 +35,8 @@ module Aristotle
 
 			@order_type = args[:order_type]
 			@order_source = args[:order_source]
+
+			@transaction_sku_require_sku_attributes = true
 		end
 
 		def connection

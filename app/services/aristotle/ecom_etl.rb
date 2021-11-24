@@ -623,13 +623,18 @@ module Aristotle
 					# puts " -> sku_id: #{transaction_sku.sku_id},  src_line_item_id: #{transaction_sku.src_line_item_id}, data_src: #{transaction_sku.data_src}, src_transaction_id: #{transaction_sku.src_transaction_id}, offer: #{transaction_sku.offer}, transaction_type: #{transaction_sku.transaction_type}"
 
 					transaction_sku_attributes_index = transaction_skus_attributes.index{ |transaction_sku_attributes| transaction_sku_attributes[:sku] == transaction_sku.sku }
-					raise Exception.new("Could not find sku match for transaction sku #{transaction_sku.id}") if transaction_sku_attributes_index.nil?
-					transaction_sku_attributes = transaction_skus_attributes.delete_at( transaction_sku_attributes_index )
-					raise Exception.new("Could not find attribute match for transaction sku #{transaction_sku.id}") if transaction_sku_attributes.blank?
+					transaction_sku_attributes = transaction_skus_attributes.delete_at( transaction_sku_attributes_index ) unless transaction_sku_attributes_index.nil?
+
+					if @transaction_sku_require_sku_attributes
+						raise Exception.new("Could not find sku match for transaction sku #{transaction_sku.id}") if transaction_sku_attributes_index.nil?
+						raise Exception.new("Could not find attribute match for transaction sku #{transaction_sku.id}") if transaction_sku_attributes.blank?
+					end
+
 					# puts "   -> #{transaction_item_attributes.to_json}"
 					# puts "   -> #{transaction_sku_attributes.to_json}"
+
 					transaction_sku.attributes = transaction_item_attributes
-					transaction_sku.attributes = transaction_sku_attributes
+					transaction_sku.attributes = transaction_sku_attributes if transaction_sku_attributes.present?
 
 					puts "transaction_sku.changes #{transaction_sku.changes.to_json}" if transaction_sku.changes.present?
 
