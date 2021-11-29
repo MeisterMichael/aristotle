@@ -123,6 +123,10 @@ module Aristotle
 
 			transaction_items_attributes = self.transform_refund_into_transaction_items_attributes( src_refund, order_transaction_items )
 
+			if transaction_items_attributes.blank?
+				raise Exception.new( "Process Refund Error: Unable to find refund transaction_item_attributes for src_transaction_id #{src_transaction_id}" )
+			end
+
 			# if refund already exists, update the state attributes AND channel partner/commission
 			if refund_transaction_items.present?
 				# puts "  -> Already Refunded"
@@ -222,7 +226,7 @@ module Aristotle
 
 				# Update order and order transaction items status and set refunded
 				# at timestamp.
-				order_refund_updates = { refunded_at: refund_transaction_items.first.src_created_at } if refund_transaction_items.present?
+				order_refund_updates = { refunded_at: refund_transaction_items.first.src_created_at }
 				order_refund_updates[:status] = 'refunded' unless order.cancelled?
 
 				order.update( order_refund_updates )
