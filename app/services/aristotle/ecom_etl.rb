@@ -222,7 +222,7 @@ module Aristotle
 
 				# Update order and order transaction items status and set refunded
 				# at timestamp.
-				order_refund_updates = { refunded_at: refund_transaction_items.first.src_created_at }
+				order_refund_updates = { refunded_at: refund_transaction_items.first.src_created_at } if refund_transaction_items.present?
 				order_refund_updates[:status] = 'refunded' unless order.cancelled?
 
 				order.update( order_refund_updates )
