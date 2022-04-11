@@ -124,9 +124,12 @@ module Aristotle
 
 			elsif item_type == 'BazaarMediaRelation'
 
-				item = exec_query("SELECT * FROM bazaar_media_relations WHERE id = #{item_id}").first.symbolize_keys
-				item[:bazaar_media_from]	= extract_item( 'BazaarMedia', item[:bazaar_media_from_id] )
-				item[:bazaar_media_to]		= extract_item( 'BazaarMedia', item[:bazaar_media_to_id] )
+				item = exec_query("SELECT * FROM bazaar_media_relations WHERE id = #{item_id}").first
+				if item.present?
+					item = item.symbolize_keys
+					item[:bazaar_media_from]	= extract_item( 'BazaarMedia', item[:bazaar_media_from_id] )
+					item[:bazaar_media_to]		= extract_item( 'BazaarMedia', item[:bazaar_media_to_id] )
+				end
 
 			elsif item_type == 'BazaarMedia'
 
@@ -394,12 +397,30 @@ module Aristotle
 				src_order[:billing_address][:geo_state] = exec_query("SELECT * FROM geo_states WHERE id = #{src_order[:billing_address][:geo_state_id]}").first.try(:symbolize_keys) if src_order[:billing_address][:geo_state_id].present?
 				src_order[:billing_address][:geo_country] = exec_query("SELECT * FROM geo_countries WHERE id = #{src_order[:billing_address][:geo_country_id]}").first.symbolize_keys
 			end
+			# if src_order[:billing_address_id].present?
+			# 	src_order[:billing_address] = exec_query("SELECT * FROM geo_addresses WHERE id = #{src_order[:billing_address_id]}").first.try(:symbolize_keys)
+			# 	if src_order[:billing_address]
+			# 		src_order[:billing_address][:geo_state] = exec_query("SELECT * FROM geo_states WHERE id = #{src_order[:billing_address][:geo_state_id]}").first.try(:symbolize_keys) if src_order[:billing_address][:geo_state_id].present?
+			# 		src_order[:billing_address][:geo_country] = exec_query("SELECT * FROM geo_countries WHERE id = #{src_order[:billing_address][:geo_country_id]}").first.symbolize_keys
+			# 	else
+			# 		src_order[:billing_address] = {}
+			# 	end
+			# end
 
 			if src_order[:shipping_address_id]
 				src_order[:shipping_address] = exec_query("SELECT * FROM geo_addresses WHERE id = #{src_order[:shipping_address_id]}").first.symbolize_keys
 				src_order[:shipping_address][:geo_state] = exec_query("SELECT * FROM geo_states WHERE id = #{src_order[:shipping_address][:geo_state_id]}").first.try(:symbolize_keys) if src_order[:shipping_address][:geo_state_id].present?
 				src_order[:shipping_address][:geo_country] = exec_query("SELECT * FROM geo_countries WHERE id = #{src_order[:shipping_address][:geo_country_id]}").first.symbolize_keys
 			end
+			# if src_order[:shipping_address_id]
+			# 	src_order[:shipping_address] = exec_query("SELECT * FROM geo_addresses WHERE id = #{src_order[:shipping_address_id]}").first.try(:symbolize_keys)
+			# 	if src_order[:shipping_address]
+			# 		src_order[:shipping_address][:geo_state] = exec_query("SELECT * FROM geo_states WHERE id = #{src_order[:shipping_address][:geo_state_id]}").first.try(:symbolize_keys) if src_order[:shipping_address][:geo_state_id].present?
+			# 		src_order[:shipping_address][:geo_country] = exec_query("SELECT * FROM geo_countries WHERE id = #{src_order[:shipping_address][:geo_country_id]}").first.symbolize_keys
+			# 	else
+			# 		src_order[:shipping_address] = {}
+			# 	end
+			# end
 
 			src_order[:user] = src_order[:customer] = exec_query("SELECT * FROM users WHERE id = #{src_order[:user_id]}").first.symbolize_keys if src_order[:user_id].present?
 			src_order[:wholesale_client] = exec_query("SELECT * FROM wholesale_clients WHERE user_id = #{src_order[:user_id]}").first.try(:symbolize_keys) if src_order[:user_id].present?
