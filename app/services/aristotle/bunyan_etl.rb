@@ -148,14 +148,20 @@ module Aristotle
 			events = []
 			events << event
 
-			case event.src_target_obj_type
-			when 'Bazaar::Order'
-				src_event[:target_obj][:order_offers].each do |src_order_offer|
-					events = events + process_src_event( src_event.merge( id: src_event_id, name: "#{src_event[:name]}::offer", target_obj_id: src_order_offer[:offer_id], target_obj_type: 'Bazaar::Offer', target_obj: nil ), src_client )
-				end
-			when 'Bazaar::Cart'
-				src_event[:target_obj][:cart_offers].each do |src_cart_offer|
-					events = events + process_src_event( src_event.merge( id: src_event_id, name: "#{src_event[:name]}::offer", target_obj_id: src_cart_offer[:offer_id], target_obj_type: 'Bazaar::Offer', target_obj: nil ), src_client )
+			if src_event[:target_obj].present?
+				case event.src_target_obj_type
+				when 'Bazaar::Order'
+					if src_event[:target_obj][:order_offers].present?
+						src_event[:target_obj][:order_offers].each do |src_order_offer|
+							events = events + process_src_event( src_event.merge( id: src_event_id, name: "#{src_event[:name]}::offer", target_obj_id: src_order_offer[:offer_id], target_obj_type: 'Bazaar::Offer', target_obj: nil ), src_client )
+						end
+					end
+				when 'Bazaar::Cart'
+					if src_event[:target_obj][:cart_offers].present?
+						src_event[:target_obj][:cart_offers].each do |src_cart_offer|
+							events = events + process_src_event( src_event.merge( id: src_event_id, name: "#{src_event[:name]}::offer", target_obj_id: src_cart_offer[:offer_id], target_obj_type: 'Bazaar::Offer', target_obj: nil ), src_client )
+						end
+					end
 				end
 			end
 
