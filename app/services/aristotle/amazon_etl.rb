@@ -428,7 +428,7 @@ module Aristotle
 			orders = [orders] if orders.is_a? Hash
 
 			orders.each do |order|
-				puts "order['AmazonOrderId'] #{order['AmazonOrderId']} : #{order['OrderStatus']}"
+				puts "order['AmazonOrderId'] #{order['AmazonOrderId']} : #{order['OrderStatus']} : #{order['PurchaseDate']}"
 				order_item_response = self.order_api_list_order_items( order['AmazonOrderId'] )
 
 				order_items = order_item_response.parse['OrderItems']['OrderItem']
