@@ -260,7 +260,7 @@ QUERY
 					# 'adset_name'							=> row.ad_group.name,
 					# 'ad_id'										=> row.ad.id,
 					# 'ad_name'									=> row.ad.name,
-					'spend' 									=> (row.metrics.cost_micros.to_f/1000000.0*100.0).round,
+					'spend' 									=> (row.metrics.cost_micros.to_f/1000000.0*10.0).round,
 					'clicks' 									=> row.metrics.clicks,
 					'unique_clicks'						=> row.metrics.clicks,
 					'purchase.action_values'	=> (row.metrics.conversions_value.to_f * 100.0).round,
