@@ -263,7 +263,7 @@ QUERY
 					'spend' 									=> (row.metrics.cost_micros.to_f / 100.0).round(2),
 					'clicks' 									=> row.metrics.clicks,
 					'unique_clicks'						=> row.metrics.clicks,
-					'purchase.action_values'	=> row.metrics.conversions_value,
+					'purchase.action_values'	=> (row.metrics.conversions_value.to_f / 100.0).round(2),
 					'purchase.actions'				=> row.metrics.conversions,
 					'purchase.unique_actions'	=> row.metrics.conversions,
 				}
