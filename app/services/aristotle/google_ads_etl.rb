@@ -220,9 +220,9 @@ metrics.conversions,
 metrics.conversions_value,
 segments.date
 FROM campaign
-WHERE segments.date DURING LAST_7_DAYS
+WHERE segments.date BETWEEN '#{start_at}' AND '#{end_at}'
 QUERY
-			# BETWEEN '#{start_at}' AND '#{end_at}'
+			#
 			search_options = {
 				customer_id: @customer_id.gsub(/\-/,''),
 				query: query.strip,
