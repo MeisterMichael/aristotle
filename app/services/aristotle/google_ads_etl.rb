@@ -260,13 +260,15 @@ QUERY
 					# 'adset_name'							=> row.ad_group.name,
 					# 'ad_id'										=> row.ad.id,
 					# 'ad_name'									=> row.ad.name,
-					'spend' 									=> (row.metrics.cost_micros.to_f / 100.0).round(2),
+					'spend' 									=> (row.metrics.cost_micros.to_f/1000000.0*100.0).round,
 					'clicks' 									=> row.metrics.clicks,
 					'unique_clicks'						=> row.metrics.clicks,
-					'purchase.action_values'	=> (row.metrics.conversions_value.to_f / 100.0).round(2),
+					'purchase.action_values'	=> (row.metrics.conversions_value.to_f * 100.0).round,
 					'purchase.actions'				=> row.metrics.conversions,
 					'purchase.unique_actions'	=> row.metrics.conversions,
 				}
+				# puts "row.metrics.cost_micros #{row.metrics.cost_micros}"
+				# puts "row.metrics.conversions_value #{row.metrics.conversions_value}"
 				# puts JSON.pretty_generate( result_row )
 				result_rows[date.to_s] = result_row
 

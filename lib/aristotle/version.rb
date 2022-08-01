@@ -1,3 +1,3 @@
 module Aristotle
-  VERSION = '2.25.3'
+  VERSION = '2.25.4'
 end
