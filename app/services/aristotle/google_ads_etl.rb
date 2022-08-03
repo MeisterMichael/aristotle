@@ -247,8 +247,9 @@ QUERY
 				segments = row.segments
 
 				date = Date.parse( row.segments.date.to_s )
+				key = date.to_s+"_"+@customer_id.to_s+"_"+row.campaign.id.to_s
 
-				result_row = result_rows[date.to_s]
+				result_row = result_rows[key]
 				result_row ||= {
 					'date_start'							=> date.beginning_of_day.to_s,
 					'date_stop'								=> date.end_of_day.to_s,
@@ -270,12 +271,11 @@ QUERY
 				# puts "row.metrics.cost_micros #{row.metrics.cost_micros}"
 				# puts "row.metrics.conversions_value #{row.metrics.conversions_value}"
 				# puts JSON.pretty_generate( result_row )
-				result_rows[date.to_s] = result_row
+				result_rows[key] = result_row
 
 			end
 
-			result_rows.values
-
+			result_rows.values.sort_by{|row| row[:date_start] }
 		end
 
 	end
