@@ -173,7 +173,7 @@ module Aristotle
 				marketing_spend.purchase_count		= row['purchase.actions']
 				marketing_spend.purchase_uniq_count	= row['purchase.unique_actions']
 				marketing_spend.purchase_value		= (row['purchase.action_values'] * 100).to_i
-				marketing_spend.spend				= (row['spend'] * 100).to_i
+				marketing_spend.spend				= ( row['spend'].to_f * 100.0 ).to_i
 
 				puts marketing_spend.errors.full_messages unless marketing_spend.save
 			end
@@ -260,7 +260,7 @@ QUERY
 					# 'adset_name'							=> row.ad_group.name,
 					# 'ad_id'										=> row.ad.id,
 					# 'ad_name'									=> row.ad.name,
-					'spend' 									=> (row.metrics.cost_micros.to_f/1000000.0*10.0).round,
+					'spend' 									=> ( row.metrics.cost_micros.to_f / 1000000.0 ).round(2),
 					'clicks' 									=> row.metrics.clicks,
 					'unique_clicks'						=> row.metrics.clicks,
 					'purchase.action_values'	=> (row.metrics.conversions_value.to_f * 100.0).round,
