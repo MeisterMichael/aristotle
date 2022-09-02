@@ -535,30 +535,38 @@ module Aristotle
 		end
 
 		def extract_channel_partner_from_src_order( src_order )
-			refersion_properties = self.get_order_refersion_properties( src_order )
-			return nil if refersion_properties[:id].blank?
+			channel_partner = nil
+			conversion_properties = self.get_affiliate_conversion_properties( src_order )
 
-			channel_partner = ChannelPartner.where( refersion_channel_partner_id: refersion_properties[:affiliate_id] ).first
+			if conversion_properties[:id].present?
 
-			channel_partner ||= ChannelPartner.create(
-				data_src: @data_src,
-				name: refersion_properties[:affiliate_full_name],
-				src_channel_partner_id: refersion_properties[:affiliate_id],
-				refersion_channel_partner_id: refersion_properties[:affiliate_id],
-				# login: referral_data['user_login'],
-				# email: referral_data['user_email'],
-				# company_name: referral_data['company'],
-				# status: status,
-			)
+				where_attributes = {
+					"#{conversion_properties[:data_src] || 'refersion'}_channel_partner_id": conversion_properties[:affiliate_id]
+				}
 
-			channel_partner.update( name: refersion_properties[:affiliate_full_name] ) unless refersion_properties[:affiliate_full_name].blank?
 
-			if channel_partner.errors.present?
-				Rails.logger.info channel_partner.attributes.to_s
-				raise Exception.new( channel_partner.errors.full_messages )
+				channel_partner = ChannelPartner.where( where_attributes ).first
+
+				channel_partner ||= ChannelPartner.create(
+					where_attributes.merge(
+						data_src: conversion_properties[:data_src],
+						name: conversion_properties[:affiliate_full_name],
+						src_channel_partner_id: conversion_properties[:affiliate_id],
+						# login: referral_data['user_login'],
+						# email: referral_data['user_email'],
+						# company_name: referral_data['company'],
+						# status: status,
+					)
+				)
+
+				channel_partner.update( name: conversion_properties[:affiliate_full_name] ) unless conversion_properties[:affiliate_full_name].blank?
+
+				if channel_partner.errors.present?
+					Rails.logger.info channel_partner.attributes.to_s
+					raise Exception.new( channel_partner.errors.full_messages )
+				end
+
 			end
-
-
 
 			channel_partner
 		end
@@ -964,10 +972,10 @@ module Aristotle
 		def extract_transaction_items_attributes_from_src_order( src_order, args = {} )
 
 			state_attributes = self.extract_state_attributes_from_order( src_order )
-			refersion_properties = self.get_order_refersion_properties( src_order )
+			conversion_properties = self.get_affiliate_conversion_properties( src_order )
 			payment_type = self.get_order_payment_type( src_order )
 
-			transaction_items_attributes = self.transform_order_items_to_transaction_items_attributes( src_order[:order_items], src_order[:order_offers], commission_total: ( refersion_properties[:commission_total] || 0 ) )
+			transaction_items_attributes = self.transform_order_items_to_transaction_items_attributes( src_order[:order_items], src_order[:order_offers], commission_total: ( conversion_properties[:commission_total] || 0 ) )
 
 			transaction_items_attributes.each do |transaction_item_attributes|
 				transaction_item_attributes[:transaction_type]	= 'charge'
@@ -1039,6 +1047,7 @@ module Aristotle
 		def get_order_refersion_properties( src_order )
 			return src_order[:refersion_properties] if src_order[:refersion_properties].present?
 			refersion_properties = {}
+			refersion_properties[:data_src] = 'refersion'
 
 			src_order[:properties].each do |key,value|
 				if key.to_s.start_with? 'refersion_conversion_'
@@ -1050,6 +1059,44 @@ module Aristotle
 			refersion_properties[:commission_total] = (refersion_properties[:commission_total].to_f * 100.0).to_i if refersion_properties[:commission_total].present?
 
 			src_order[:refersion_properties] = refersion_properties
+		end
+
+		# payout
+		# status
+		# recieved_at
+		# affiliate_id
+		# affiliate_full_name
+		# commission_total
+		# id
+		# json
+		def get_order_everflow_properties( src_order )
+			return src_order[:everflow_properties] if src_order[:everflow_properties].present?
+			everflow_properties = {}
+			everflow_properties[:data_src] = 'everflow'
+
+			src_order[:properties].each do |key,value|
+				if key.to_s.start_with? 'nhc_everflow_conversion_'
+					everflow_properties[key.to_s.gsub(/^nhc_everflow_conversion_/,'').to_sym] = value
+				end
+			end
+
+			everflow_properties[:commission_total] = (everflow_properties[:commission_total].to_f * 100.0).to_i if everflow_properties[:commission_total].present?
+			src_order[:everflow_properties] = everflow_properties
+		end
+
+		# id
+		# affiliate_id
+		# commission_total
+		# affiliate_full_name
+		# offer_id
+		# data_src
+		def get_affiliate_conversion_properties( src_order )
+			return src_order[:conversion_properties] if src_order[:conversion_properties].present?
+
+			conversion_properties = get_order_everflow_properties( src_order )
+			conversion_properties = get_order_refersion_properties( src_order ) if conversion_properties[:id].blank?
+
+			src_order[:everflow_properties] = conversion_properties
 		end
 
 		def is_subscription_renewal_order( src_order )
