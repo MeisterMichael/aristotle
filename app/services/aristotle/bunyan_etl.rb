@@ -183,14 +183,25 @@ module Aristotle
 			limit = 500
 			offset = 0
 
+
+			excluded_event_names = args[:excluded_event_names] || ['pageview', '404', 'get-client']
+
+			qualified_events = Aristotle::Event.where( data_src: @data_src ).where.not( name: excluded_event_names )
+			qualified_events = qualified_events.where("name ilike '%#{args[:ilike_name]}%'") if args[:ilike_name].present?
+			qualified_events = qualified_events.where("category = '#{args[:category]}'") if args[:category].present?
+			qualified_events = qualified_events.where("referrer_path ilike '#{args[:referrer_path_starts_with]}%'") if args[:referrer_path_starts_with].present?
+			qualified_events = qualified_events.where("page_path ilike '#{args[:page_path_starts_with]}%'") if args[:page_path_starts_with].present?
+
 			last_event_id = args[:last_event_id]
-			last_event_id ||= Event.where( data_src: @data_src ).maximum('src_event_id::bigint')
+			last_event_id ||= qualified_events.where( event_created_at: 1.month.ago..Time.now ).maximum('src_event_id::bigint')
+			last_event_id ||= qualified_events.where( event_created_at: 1.month.ago..Time.now ).maximum('src_event_id')
+			last_event_id ||= qualified_events.maximum('src_event_id')
+			last_event_id ||= qualified_events.last.try(:src_event_id)
 			last_event_id ||= 0
 
 			max_created_at = args[:max_created_at] || 1.day.ago
 			min_created_at = args[:min_created_at] || Time.at(0)
 
-			excluded_event_names = args[:excluded_event_names] || ['pageview', '404', 'get-client']
 
 			event_query_filters = ""
 			event_query_filters = event_query_filters + "AND bunyan_events.name ilike '%#{args[:ilike_name]}%'" if args[:ilike_name].present?
