@@ -235,7 +235,7 @@ QUERY
 
 			if response.response.results.empty?
 				puts sprintf("The given query returned no entries:\n %s", query)
-				return
+				return []
 			end
 
 			result_rows = []
