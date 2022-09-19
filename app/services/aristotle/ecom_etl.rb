@@ -185,7 +185,7 @@ module Aristotle
 
 				# set defaults and denormatized order data for all refunds
 				# transaction items
-				default_transaction_item_attributes = { transaction_type: 'refund', data_src: data_src, src_transaction_id: src_transaction_id }
+				default_transaction_item_attributes = { transaction_type: 'refund', data_src: data_src, src_transaction_id: src_transaction_id, order_id: order.id }
 				default_transaction_item_attributes.merge!( EcomEtl.extract_attributes_from_model( order, EcomEtl.DENORMALIZED_ORDER_ATTRIBUTES ) )
 
 				# Create new refund transaction items
@@ -445,7 +445,7 @@ module Aristotle
 			denormalized_order_attributes 	= EcomEtl.extract_attributes_from_model( order, EcomEtl.DENORMALIZED_ORDER_ATTRIBUTES )
 			order_state_attributes 			= EcomEtl.extract_attributes_from_model( order, EcomEtl.STATE_ATTRIBUTES )
 
-			default_attributes = { data_src: data_src, src_transaction_id: order.src_order_id }
+			default_attributes = { data_src: data_src, src_transaction_id: order.src_order_id, order_id: order.id }
 			default_attributes = default_attributes.merge( denormalized_order_attributes )
 			default_attributes = default_attributes.merge( order_state_attributes )
 
@@ -503,7 +503,7 @@ module Aristotle
 			denormalized_order_attributes	= EcomEtl.extract_attributes_from_model( order, EcomEtl.DENORMALIZED_ORDER_ATTRIBUTES - [:channel_partner] )
 			order_state_attributes				= EcomEtl.extract_attributes_from_model( order, EcomEtl.STATE_ATTRIBUTES )
 
-			default_attributes = { data_src: data_src, src_transaction_id: order.src_order_id }
+			default_attributes = { data_src: data_src, src_transaction_id: order.src_order_id, order_id: order.id }
 			default_attributes = default_attributes.merge( denormalized_order_attributes )
 			default_attributes = default_attributes.merge( order_state_attributes )
 

@@ -1,3 +1,5 @@
+require 'acts-as-taggable-array-on'
+
 module Aristotle
 	class Order < ApplicationRecord
 
@@ -7,6 +9,8 @@ module Aristotle
 		belongs_to :billing_location, required: false, class_name: 'Aristotle::Location'
 		belongs_to :shipping_location, required: false, class_name: 'Aristotle::Location'
 		belongs_to :wholesale_client, required: false
+
+		acts_as_taggable_array_on :tags
 
 		enum status: { 'cancelled' => -2, 'failed' => -1, 'pending' => 0, 'pre_ordered' => 1, 'on_hold' => 8, 'processing' => 9, 'completed' => 10, 'refunded' => 11 }
 

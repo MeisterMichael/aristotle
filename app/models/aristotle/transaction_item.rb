@@ -1,3 +1,5 @@
+require 'acts-as-taggable-array-on'
+
 module Aristotle
 	class TransactionItem < ApplicationRecord
 
@@ -13,6 +15,8 @@ module Aristotle
 		belongs_to :wholesale_client, required: false
 
 		has_many :transaction_skus
+
+		acts_as_taggable_array_on :tags
 
 		enum offer_type: { 'subscription' => 1, 'default' => 0, 'renewal' => 2 }
 		enum payment_type: { 'no_payment_type' => 0, 'credit_card' => 1, 'paypal' => 2, 'amazon_payments' => 3, 'cash' => 4, 'cheque' => 5, 'bitpay' => 6 }
