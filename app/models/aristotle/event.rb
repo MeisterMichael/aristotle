@@ -4,6 +4,8 @@ module Aristotle
 		belongs_to :coupon, required: false
 		belongs_to :customer, required: false
 		belongs_to :email_campaign, required: false
+		belongs_to :from_offer, required: false, class_name: 'Aristotle::Offer'
+		belongs_to :from_product, required: false, class_name: 'Aristotle::Product'
 		belongs_to :location, required: false
 		belongs_to :offer, required: false
 		belongs_to :order, required: false

@@ -125,6 +125,15 @@ module Aristotle
 				when 'Bazaar::SubscriptionPlan'
 					event.offer 	||= Offer.where( data_src: @bazaar_data_sources, src_offer_id: "Bazaar::Offer\##{target_obj[:offer_id]}" ).first if target_obj[:offer]
 				when 'Bazaar::UpsellOffer'
+					if target_obj[:src_product_id] && event.respond_to?(:from_product)
+						event.from_product 	||= Product.where( data_src: @bazaar_data_sources, src_product_id: "Bazaar::Product\##{target_obj[:src_product_id]}" ).first
+					end
+
+					if target_obj[:src_offer_id] && event.respond_to?(:from_offer)
+						event.from_offer		||= Offer.where( data_src: @bazaar_data_sources, src_offer_id: "Bazaar::Offer\##{target_obj[:src_offer_id]}" ).first
+						event.from_product	||= event.from_offer.try(:product)
+					end
+
 					event.offer 	||= Offer.where( data_src: @bazaar_data_sources, src_offer_id: "Bazaar::Offer\##{target_obj[:offer_id]}" ).first if target_obj[:offer]
 				when 'BazaarMediaRelation'
 					event.product	||= Product.where( data_src: @bazaar_data_sources, src_product_id: "Bazaar::Product\##{target_obj[:bazaar_media_to][:product_id]}" ).first if target_obj[:bazaar_media_to][:product_id]
