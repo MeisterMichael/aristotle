@@ -105,9 +105,6 @@ module Aristotle
 			# event_attributes['offer']
 			# event_attributes['wholesale_client']
 
-
-
-
 			if ( target_obj = src_event[:target_obj] ).present?
 
 				case event.src_target_obj_type
@@ -153,6 +150,9 @@ module Aristotle
 			event.customer					||= event.order.try(:customer)
 			event.location					||= event.order.try(:location)
 			event.wholesale_client	||= event.order.try(:wholesale_client)
+
+
+
 
 			events = []
 			events << event
@@ -275,6 +275,18 @@ SQL
 						# previous_client_events.where( wholesale_client: nil ).update_all( wholesale_client_id: event.wholesale_client.id ) if event.wholesale_client.present?
 						puts " -> updating client events done"
 					end
+
+
+					if event.category == 'ecom' && event.name == 'purchase' && event.order.present?
+
+						puts " -> updating orders with client ids"
+						puts Aristotle::TransactionSku.where( data_src: event.order.data_src, src_transaction_id: event.order.src_order_id ).update_all( event_data_src: event.data_src, event_client_id: event.src_client_id, event_id: event.src_event_id )
+						puts Aristotle::TransactionItem.where( data_src: event.order.data_src, src_transaction_id: event.order.src_order_id ).update_all( event_data_src: event.data_src, event_client_id: event.src_client_id, event_id: event.src_event_id )
+						puts event.order.update( event_data_src: event.data_src, event_client_id: event.src_client_id, event_id: event.src_event_id )
+						puts Aristotle::Subscription.where( data_src: event.order.data_src, src_order_id: event.order.src_order_id ).update_all( event_data_src: event.data_src, event_client_id: event.src_client_id, event_id: event.src_event_id )
+						puts " -> updating orders with client ids done"
+					end
+
 
 					last_event_id = src_event_id
 				end
