@@ -13,6 +13,7 @@ module Aristotle
 		belongs_to :subscription, required: false
 		belongs_to :warehouse, required: false
 		belongs_to :wholesale_client, required: false
+		belongs_to :event, required: false
 
 		has_many :transaction_skus
 

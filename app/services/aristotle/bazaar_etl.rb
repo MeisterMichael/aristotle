@@ -392,6 +392,9 @@ module Aristotle
 			src_order[:payment_status] = src_order[:payment_status].to_i
 			src_order[:fulfillment_status] = src_order[:fulfillment_status].to_i
 
+
+			src_order[:purchase_event] = exec_query("SELECT * FROM bunyan_events WHERE name = 'purchase' AND category = 'ecom' AND target_obj_type = 'Bazaar::Order' AND target_obj_id = #{src_order[:id]}").first.try(:symbolize_keys)
+
 			if src_order[:billing_address_id].present?
 				src_order_billing_address = exec_query("SELECT * FROM geo_addresses WHERE id = #{src_order[:billing_address_id]}").first.try(:symbolize_keys)
 				if src_order_billing_address.present?
@@ -864,6 +867,16 @@ module Aristotle
 
 			# Merge results ***********************
 			state_attributes = timestamps.merge( status: status )
+			if src_order[:purchase_event].present?
+				event = src_order[:purchase_event]
+
+				state_attributes = state_attributes.merge(
+					event_data_src: 'Website',
+					src_event_client_id: event[:client_id],
+					src_event_id: event[:id],
+					event_id: Aristotle::Event.where( data_src: 'Website', src_event_id: event[:id] ).limit(1).pluck(:id).first,
+				)
+			end
 
 			src_order[:_state_attributes] = state_attributes
 		end

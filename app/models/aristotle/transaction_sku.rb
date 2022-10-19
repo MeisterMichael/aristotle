@@ -15,6 +15,7 @@ module Aristotle
 		belongs_to :transaction_item
 		belongs_to :warehouse, required: false
 		belongs_to :wholesale_client, required: false
+		belongs_to :event, required: false
 
 		acts_as_taggable_array_on :tags
 

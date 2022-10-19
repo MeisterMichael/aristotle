@@ -41,7 +41,7 @@ module Aristotle
 		end
 
 		def self.DENORMALIZED_ORDER_ATTRIBUTES
-			[:src_order_label, :src_order_id, :customer, :location, :billing_location, :shipping_location, :channel_partner, :campaign, :source, :wholesale_client]
+			[:src_order_label, :src_order_id, :customer, :location, :billing_location, :shipping_location, :channel_partner, :campaign, :source, :wholesale_client, :event_data_src, :src_event_client_id, :src_event_id, :event_id]
 		end
 
 

@@ -277,17 +277,6 @@ SQL
 					end
 
 
-					if event.category == 'ecom' && event.name == 'purchase' && event.order.present?
-
-						puts " -> updating orders with client ids"
-						puts Aristotle::TransactionSku.where( data_src: event.order.data_src, src_transaction_id: event.order.src_order_id ).update_all( event_data_src: event.data_src, event_client_id: event.src_client_id, event_id: event.src_event_id )
-						puts Aristotle::TransactionItem.where( data_src: event.order.data_src, src_transaction_id: event.order.src_order_id ).update_all( event_data_src: event.data_src, event_client_id: event.src_client_id, event_id: event.src_event_id )
-						puts event.order.update( event_data_src: event.data_src, event_client_id: event.src_client_id, event_id: event.src_event_id )
-						puts Aristotle::Subscription.where( data_src: event.order.data_src, src_order_id: event.order.src_order_id ).update_all( event_data_src: event.data_src, event_client_id: event.src_client_id, event_id: event.src_event_id )
-						puts " -> updating orders with client ids done"
-					end
-
-
 					last_event_id = src_event_id
 				end
 
