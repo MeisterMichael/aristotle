@@ -10,6 +10,7 @@ module Aristotle
 		belongs_to :shipping_location, required: false, class_name: 'Aristotle::Location'
 		belongs_to :sku, required: false
 		belongs_to :offer, required: false
+		belongs_to :order, required: false
 		belongs_to :product, required: false
 		belongs_to :subscription, required: false
 		belongs_to :transaction_item
