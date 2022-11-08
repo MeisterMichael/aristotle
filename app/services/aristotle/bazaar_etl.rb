@@ -394,6 +394,9 @@ module Aristotle
 
 
 			src_order[:purchase_event] = exec_query("SELECT * FROM bunyan_events WHERE name = 'purchase' AND category = 'ecom' AND target_obj_type = 'Bazaar::Order' AND target_obj_id = #{src_order[:id]}").first.try(:symbolize_keys)
+			# if src_order[:purchase_event].present? && src_order[:purchase_event][:client_id].present?
+			# 	src_order[:purchase_event][:client] = exec_query("SELECT * FROM bunyan_clients WHERE id = #{src_order[:purchase_event][:client_id]}").first.try(:symbolize_keys)
+			# end
 
 			if src_order[:billing_address_id].present?
 				src_order_billing_address = exec_query("SELECT * FROM geo_addresses WHERE id = #{src_order[:billing_address_id]}").first.try(:symbolize_keys)
@@ -864,6 +867,7 @@ module Aristotle
 				status = 'pending'
 			end
 
+			client_id = src_order[:client_id]
 
 			# Merge results ***********************
 			state_attributes = timestamps.merge( status: status )
@@ -874,8 +878,15 @@ module Aristotle
 					event_data_src: 'Website',
 					src_event_client_id: event[:client_id],
 					src_event_id: event[:id],
-					event_id: Aristotle::Event.where( data_src: 'Website', src_event_id: event[:id] ).limit(1).pluck(:id).first,
 				)
+
+				client_id ||= event[:client_id]
+			end
+
+			if client_id.present?
+				previous_client_orders = Aristotle::Order.where(src_event_client_id: event[:client_id], src_created_at: Time.at(0)..src_order[:created_at] ).where.not( src_order_id: src_order[:id] )
+				state_attributes[:event_client_purchase_index] = previous_client_orders.count + 1
+				puts "state_attributes[:event_client_purchase_index] #{state_attributes[:event_client_purchase_index]}"
 			end
 
 			src_order[:_state_attributes] = state_attributes
