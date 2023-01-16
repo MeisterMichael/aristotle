@@ -753,8 +753,8 @@ module Aristotle
 
 				line_item = {
 					quantity: 			transaction_items.count,
-					src_subscription_id: transaction_items.first.src_subscription_id,
-					src_line_item_id:	transaction_items.first.src_line_item_id,
+					src_subscription_id: transaction_items.first.try(:src_subscription_id),
+					src_line_item_id:	line_item_id,
 					exchange_rate:	exchange_rate,
 				}
 
