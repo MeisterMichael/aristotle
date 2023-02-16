@@ -750,9 +750,18 @@ module Aristotle
 				line_item_id 	= amazon_refund_order_item['OrderItemId']
 
 				transaction_items = order_transaction_items.select{ |item| item.src_line_item_id == line_item_id }
+				quantity = transaction_items.count
+
+				if quantity == 0 && amazon_refund_order_item['SellerSKU'].present?
+					transaction_items = order_transaction_items.select{ |item| item.offer.src_offer_id == amazon_refund_order_item['SellerSKU'].to_s }
+					quantity = transaction_items.count
+				end
+
+				quantity = amazon_refund_order_item['QuantityOrdered'].to_i if quantity == 0
+
 
 				line_item = {
-					quantity: 			transaction_items.count,
+					quantity: 			quantity,
 					src_subscription_id: transaction_items.first.try(:src_subscription_id),
 					src_line_item_id:	line_item_id,
 					exchange_rate:	exchange_rate,
