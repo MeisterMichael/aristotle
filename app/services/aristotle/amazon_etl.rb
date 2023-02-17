@@ -158,6 +158,8 @@ module Aristotle
 
 			last_settlement_report_at = nil
 
+			refund_errors = []
+
 			while response.present?
 
 				parsed_response = response.parse
@@ -192,9 +194,12 @@ module Aristotle
 
 					puts "  -> Processing #{new_refunds.count} refunds"
 					new_refunds.each do |refund|
-
-						self.process_refund( refund, @data_src )
-
+						begin
+							self.process_refund( refund, @data_src )
+						rescue Exception => e
+							puts "    -> Exception #{e.message} #{refund.to_json}"
+							refund_errors << { exception: e, data: refund }
+						end
 					end
 
 					puts "Extracting Order Updates from Report #{report_id} #{report['AvailableDate']}"
@@ -218,6 +223,10 @@ module Aristotle
 				response = nil
 				response = report_api_get_report_list_by_next_token( next_token ) if next_token.present?
 
+			end
+
+			if refund_errors.present?
+				raise Exception.new("Refund Errors #{refund_errors.count} #{refund_errors.to_json}")
 			end
 
 			last_settlement_report_at
