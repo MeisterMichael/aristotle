@@ -619,7 +619,7 @@ module Aristotle
 				timestamps[key] = Time.parse( time_string ).utc.strftime('%Y-%m-%d %H:%M:%S') if key.to_s.ends_with?('_at') && time_string.present? && time_string.is_a?(String)
 			end
 
-			state_attributes = timestamps.merge( status: status )
+			state_attributes = timestamps.merge( status: status, data_src_account: @marketplace_country )
 
 			# puts JSON.pretty_generate state_attributes
 
@@ -641,6 +641,7 @@ module Aristotle
 				completed_at: amazon_refund['RefundDate'],
 				refunded_at: nil,
 				status: 'completed',
+				data_src_account: @marketplace_country,
 			}
 
 			timestamps.each do |key, time_string|

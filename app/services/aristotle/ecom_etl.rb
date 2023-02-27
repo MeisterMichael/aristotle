@@ -5,7 +5,7 @@ module Aristotle
 		# **************************************************************************
 
 		def self.STATE_ATTRIBUTES
-			[ :status, :src_created_at, :transacted_at, :canceled_at, :failed_at, :pending_at, :pre_ordered_at, :on_hold_at, :processing_at, :completed_at, :refunded_at ]
+			[ :status, :src_created_at, :transacted_at, :canceled_at, :failed_at, :pending_at, :pre_ordered_at, :on_hold_at, :processing_at, :completed_at, :refunded_at, :data_src_account ]
 		end
 
 		def self.AGGREGATE_NUMERIC_ATTRIBUTES
