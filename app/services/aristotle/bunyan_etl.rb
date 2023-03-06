@@ -135,6 +135,11 @@ module Aristotle
 					end
 				end
 			rescue Exception => e
+				puts "upsell_impressions exception #{event.name} - #{event.attributes.to_json}"
+				puts "--------------------------"
+				puts e.message
+				puts e.backtrace.join("\n")
+				puts "--------------------------\n\n\n"
 				raise e unless Rails.env.production?
 				NewRelic::Agent.notice_error(e) if defined?( NewRelic )
 			end
