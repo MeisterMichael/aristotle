@@ -45,6 +45,101 @@ module Aristotle
 			events = process_src_event( src_event, src_client )
 			puts " -> saving"
 			events.collect(&:save!)
+
+			begin
+				events.each do |event|
+					if event.name == 'upsell_offered'
+						upsell_impression = Aristotle::UpsellImpression.where( impression_event: event ).first
+						upsell_impression ||= Aristotle::UpsellImpression.where.not( accepted_at: nil ).where( impression_event: nil, src_client_id: event.src_client_id, accepted_at: event.event_created_at..(event.event_created_at + 20.minutes), upsell_offer: event.offer, upsell_product: event.product ).first
+						upsell_impression ||= Aristotle::UpsellImpression.create(
+							customer: event.customer,
+							from_offer: event.from_offer,
+							from_product: event.from_product,
+							upsell_offer: event.offer,
+							upsell_product: event.product,
+							src_client_id: event.src_client_id,
+							src_created_at: event.event_created_at,
+							event_data_src: event.data_src,
+							impression_event: event,
+						)
+						upsell_impression.update(
+							from_offer: event.from_offer,
+							from_product: event.from_product,
+							src_created_at: event.event_created_at,
+							impression_event: event,
+						)
+						puts "upsell_impression created #{upsell_impression.attributes.to_json}"
+					elsif event.name == 'upsell_accepted'
+						upsell_impressions = Aristotle::UpsellImpression.where( accepted_event: event )
+						if upsell_impressions.blank?
+							start_at = Aristotle::Event.where( data_src: event.data_src, src_client_id: event.src_client_id, event_created_at: Time.at(0)..(event.event_created_at - 1.second), name: 'purchase' ).order(event_created_at: :desc).limit(1).pluck(:event_created_at).first
+							start_at ||= Time.at(0)
+							start_at = start_at + 1.second
+
+							upsell_impressions = Aristotle::UpsellImpression.where(
+								event_data_src: event.data_src,
+								src_client_id: event.src_client_id,
+								accepted_event: nil,
+								src_created_at: start_at..event.event_created_at,
+								upsell_offer: event.offer,
+							)
+							if upsell_impressions.blank?
+								Aristotle::UpsellImpression.create(
+									customer: event.customer,
+									from_offer: nil,
+									from_product: nil,
+									upsell_offer: event.offer,
+									upsell_product: event.product,
+									src_client_id: event.src_client_id,
+									src_created_at: nil,
+									event_data_src: event.data_src,
+									accepted_event: event,
+								)
+								upsell_impressions = Aristotle::UpsellImpression.where( accepted_event: event )
+							end
+						end
+
+						upsell_impressions.update_all(
+							accepted_event_id: event.id,
+							accepted_at: event.event_created_at,
+						)
+						puts "upsell_impressions accepted #{upsell_impressions.collect(&:attributes).to_json}"
+					elsif event.name == 'purchase'
+
+						upsell_impressions = Aristotle::UpsellImpression.where( purchase_event: event )
+
+						if upsell_impressions.blank? && event.order.present?
+							start_at = Aristotle::Event.where( data_src: event.data_src, src_client_id: event.src_client_id, event_created_at: Time.at(0)..(event.event_created_at - 1.second), name: 'purchase' ).order(event_created_at: :desc).limit(1).pluck(:event_created_at).first
+							start_at ||= Time.at(0)
+							start_at = start_at + 1.second
+
+							offer_ids = Aristotle::TransactionItem.where( order: event.order ).charge.pluck('distinct offer_id')
+							upsell_impressions = Aristotle::UpsellImpression.where(
+								event_data_src: event.data_src,
+								src_client_id: event.src_client_id,
+								purchase_event: nil,
+								src_created_at: start_at..event.event_created_at,
+								upsell_offer_id: offer_ids,
+							)
+						end
+
+						upsell_impressions.update_all(
+							purchase_event_id: event.id,
+							src_order_id: event.src_target_obj_id,
+							order_id: event.order.try(:id),
+							purchased_at: event.event_created_at,
+							customer_id: event.customer.try(:id),
+						)
+
+						puts "upsell_impressions purchased #{upsell_impressions.collect(&:attributes).to_json}"
+					end
+				end
+			rescue Exception => e
+				raise e unless Rails.env.production?
+				NewRelic::Agent.notice_error(e) if defined?( NewRelic )
+			end
+
+
 			puts " -> saving done"
 			events
 		end
