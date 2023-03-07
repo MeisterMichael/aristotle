@@ -48,7 +48,7 @@ module Aristotle
 
 			begin
 				events.each do |event|
-					if event.name == 'upsell_offered'
+					if ['upsell_offered', 'bundle_upsell_offered'].include?( event.name )
 						upsell_impression = Aristotle::UpsellImpression.where( impression_event: event ).first
 						upsell_impression ||= Aristotle::UpsellImpression.where.not( accepted_at: nil ).where( impression_event: nil, src_client_id: event.src_client_id, accepted_at: event.event_created_at..(event.event_created_at + 20.minutes), upsell_offer: event.offer, upsell_product: event.product ).first
 						upsell_impression ||= Aristotle::UpsellImpression.create(
@@ -62,6 +62,9 @@ module Aristotle
 							event_data_src: event.data_src,
 							impression_event: event,
 						)
+
+						# if the upsell was loaded, rather than created then update the from
+						# details, and impression data
 						upsell_impression.update(
 							from_offer: event.from_offer,
 							from_product: event.from_product,
@@ -69,20 +72,36 @@ module Aristotle
 							impression_event: event,
 						)
 						puts "upsell_impression created #{upsell_impression.attributes.to_json}"
-					elsif event.name == 'upsell_accepted'
+					elsif ['bundle_upsell_accepted', 'upsell_accepted'].include?( event.name )
+
 						upsell_impressions = Aristotle::UpsellImpression.where( accepted_event: event )
-						if upsell_impressions.blank?
+						if upsell_impressions.blank? && event.offer.present?
 							start_at = Aristotle::Event.where( data_src: event.data_src, src_client_id: event.src_client_id, event_created_at: Time.at(0)..(event.event_created_at - 1.second), name: 'purchase' ).order(event_created_at: :desc).limit(1).pluck(:event_created_at).first
 							start_at ||= Time.at(0)
 							start_at = start_at + 1.second
 
-							upsell_impressions = Aristotle::UpsellImpression.where(
+							base_upsell_impressions = Aristotle::UpsellImpression.where(
 								event_data_src: event.data_src,
 								src_client_id: event.src_client_id,
 								accepted_event: nil,
 								src_created_at: start_at..event.event_created_at,
+							)
+
+							offer_upsell_impressions = base_upsell_impressions.where(
 								upsell_offer: event.offer,
 							)
+
+							# when bundle_upsell_offered is fired, we don't know which specific
+							# offer the custom will choose, just the product being offered.
+							# So we need to potentially match the impression by only the product
+							# but only if the offer lookup fails first
+							product_upsell_impressions = base_upsell_impressions.where(
+								upsell_product: event.product,
+							)
+
+							upsell_impressions = offer_upsell_impressions
+							upsell_impressions ||= product_upsell_impressions if upsell_impressions.blank? && event.name = 'bundle_upsell_accepted'
+
 							if upsell_impressions.blank?
 								Aristotle::UpsellImpression.create(
 									customer: event.customer,
@@ -99,10 +118,19 @@ module Aristotle
 							end
 						end
 
+						# Mark as accepted
 						upsell_impressions.update_all(
 							accepted_event_id: event.id,
 							accepted_at: event.event_created_at,
 						)
+
+						# If upsell offer is not present, then add it.
+						if event.offer.present?
+							upsell_impressions.where( upsell_offer: nil ).update_all(
+								upsell_offer_id: event.offer.id,
+								upsell_product_id: event.offer.product_id,
+							)
+						end
 						puts "upsell_impressions accepted #{upsell_impressions.collect(&:attributes).to_json}"
 					elsif event.name == 'purchase'
 
@@ -162,6 +190,10 @@ module Aristotle
 			else
 				puts " -> new"
 			end
+
+			page_params = Rack::Utils.parse_nested_query(src_event[:page_params]).deep_symbolize_keys if src_event[:page_params].present?
+			page_params ||= {}
+
 			event ||= Event.new
 			event.data_src = @data_src
 			event.src_event_id = src_event_id
@@ -233,10 +265,18 @@ module Aristotle
 
 					event.offer 	||= Offer.where( data_src: @bazaar_data_sources, src_offer_id: "Bazaar::Offer\##{target_obj[:offer_id]}" ).first if target_obj[:offer]
 				when 'BazaarMediaRelation'
+					event.from_product	||= Product.where( data_src: @bazaar_data_sources, src_product_id: "Bazaar::Product\##{target_obj[:bazaar_media_from][:product_id]}" ).first if target_obj[:bazaar_media_to][:product_id]
+					# event.from_offer 	||= Offer.where( data_src: @bazaar_data_sources, src_offer_id: "Bazaar::Offer\##{target_obj[:bazaar_media_from][:non_recurring_offer_id]}" ).first if target_obj[:bazaar_media_to][:non_recurring_offer_id]
+
 					event.product	||= Product.where( data_src: @bazaar_data_sources, src_product_id: "Bazaar::Product\##{target_obj[:bazaar_media_to][:product_id]}" ).first if target_obj[:bazaar_media_to][:product_id]
-					event.offer 	||= Offer.where( data_src: @bazaar_data_sources, src_offer_id: "Bazaar::Offer\##{target_obj[:bazaar_media_to][:non_recurring_offer_id]}" ).first if target_obj[:bazaar_media_to][:non_recurring_offer_id]
+					# event.offer 	||= Offer.where( data_src: @bazaar_data_sources, src_offer_id: "Bazaar::Offer\##{target_obj[:bazaar_media_to][:non_recurring_offer_id]}" ).first if target_obj[:bazaar_media_to][:non_recurring_offer_id]
 				end
 
+			end
+
+			if ['bundle_upsell_add_cart', 'bundle_upsell_accepted'].include?(event.name) && page_params[:offer_id].present?
+				event.product	= nil
+				event.offer 	= Offer.where( data_src: @bazaar_data_sources, src_offer_id: "Bazaar::Offer\##{page_params[:offer_id]}" ).first
 			end
 
 			event.product						||= event.offer.try(:product)
