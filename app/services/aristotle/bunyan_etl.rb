@@ -297,6 +297,7 @@ module Aristotle
 
 			qualified_events = Aristotle::Event.where( data_src: @data_src ).where.not( name: excluded_event_names )
 			qualified_events = qualified_events.where("name ilike '%#{args[:ilike_name]}%'") if args[:ilike_name].present?
+			qualified_events = qualified_events.where("name ilike '#{args[:name_starts_with]}%'") if args[:name_starts_with].present?
 			qualified_events = qualified_events.where("category = '#{args[:category]}'") if args[:category].present?
 			qualified_events = qualified_events.where("referrer_path ilike '#{args[:referrer_path_starts_with]}%'") if args[:referrer_path_starts_with].present?
 			qualified_events = qualified_events.where("page_path ilike '#{args[:page_path_starts_with]}%'") if args[:page_path_starts_with].present?
@@ -314,6 +315,7 @@ module Aristotle
 
 			event_query_filters = ""
 			event_query_filters = event_query_filters + "AND bunyan_events.name ilike '%#{args[:ilike_name]}%'" if args[:ilike_name].present?
+			event_query_filters = event_query_filters + "AND bunyan_events.name ilike '#{args[:name_starts_with]}%'" if args[:name_starts_with].present?
 			event_query_filters = event_query_filters + "AND bunyan_events.category = '#{args[:category]}'" if args[:category].present?
 			event_query_filters = event_query_filters + "AND bunyan_events.referrer_path ilike '#{args[:referrer_path_starts_with]}%'" if args[:referrer_path_starts_with].present?
 			event_query_filters = event_query_filters + "AND bunyan_events.page_path ilike '#{args[:page_path_starts_with]}%'" if args[:page_path_starts_with].present?
