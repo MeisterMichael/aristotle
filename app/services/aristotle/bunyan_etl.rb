@@ -191,7 +191,9 @@ module Aristotle
 				puts " -> new"
 			end
 
-			page_params = Rack::Utils.parse_nested_query(src_event[:page_params]).deep_symbolize_keys if src_event[:page_params].present?
+			if src_event[:page_params].present?
+				page_params = Rack::Utils.parse_nested_query(src_event[:page_params]).deep_symbolize_keys rescue nil
+			end
 			page_params ||= {}
 
 			event ||= Event.new
