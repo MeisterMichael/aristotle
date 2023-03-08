@@ -132,7 +132,7 @@ module Aristotle
 							)
 						end
 						puts "upsell_impressions accepted #{upsell_impressions.collect(&:attributes).to_json}"
-					elsif event.name == 'purchase'
+					elsif ['purchase','upsell'].include?( event.name )
 
 						upsell_impressions = Aristotle::UpsellImpression.where( purchase_event: event )
 
@@ -266,6 +266,10 @@ module Aristotle
 					end
 
 					event.offer 	||= Offer.where( data_src: @bazaar_data_sources, src_offer_id: "Bazaar::Offer\##{target_obj[:offer_id]}" ).first if target_obj[:offer]
+				when 'Bazaar::Transaction'
+
+					event.order = Order.where( data_src: @bazaar_data_sources, src_order_id: target_obj[:parent_obj_id] ).first if target_obj[:parent_obj_type] == 'Bazaar::Order'
+
 				when 'BazaarMediaRelation'
 					event.from_product	||= Product.where( data_src: @bazaar_data_sources, src_product_id: "Bazaar::Product\##{target_obj[:bazaar_media_from][:product_id]}" ).first if target_obj[:bazaar_media_to][:product_id]
 					# event.from_offer 	||= Offer.where( data_src: @bazaar_data_sources, src_offer_id: "Bazaar::Offer\##{target_obj[:bazaar_media_from][:non_recurring_offer_id]}" ).first if target_obj[:bazaar_media_to][:non_recurring_offer_id]

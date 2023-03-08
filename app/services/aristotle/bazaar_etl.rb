@@ -89,6 +89,11 @@ module Aristotle
 
 				extract_additional_attributes_for_order( item )
 
+			elsif item_type == 'Bazaar::Transaction'
+
+				item = exec_query("SELECT * FROM bazaar_transactions WHERE id = #{item_id}").first.symbolize_keys
+				# item[:order] = item[:parent_obj] = extract_item( 'Bazaar::Order', item[:parent_obj_id] ) if item[:parent_obj_type] == 'Bazaar::Order'
+
 			elsif item_type == 'Bazaar::Product'
 
 				item = exec_query("SELECT * FROM bazaar_products WHERE id = #{item_id}").first.symbolize_keys
