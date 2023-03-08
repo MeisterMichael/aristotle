@@ -48,6 +48,10 @@ module Aristotle
 
 			begin
 				events.each do |event|
+
+					upsell_type = { '1' => 'post_sale', '2' => 'at_checkout', '3' => 'exit_checkout' }[src_event[:target_obj][:upsell_type].to_s] if ['upsell_offered', 'upsell_accepted'].include?( event.name ) && src_event[:target_obj_type] == 'Bazaar::UpsellOffer' && (src_event[:target_obj] || {})[:upsell_type].present?
+					upsell_type = 'shop_page' if ['bundle_upsell_offered','bundle_upsell_accepted'].include?( event.name )
+
 					if ['upsell_offered', 'bundle_upsell_offered'].include?( event.name )
 						upsell_impression = Aristotle::UpsellImpression.where( impression_event: event ).first
 						upsell_impression ||= Aristotle::UpsellImpression.where.not( accepted_at: nil ).where( impression_event: nil, src_client_id: event.src_client_id, accepted_at: event.event_created_at..(event.event_created_at + 20.minutes), upsell_offer: event.offer, upsell_product: event.product ).first
@@ -61,6 +65,7 @@ module Aristotle
 							src_created_at: event.event_created_at,
 							event_data_src: event.data_src,
 							impression_event: event,
+							upsell_type: upsell_type,
 						)
 
 						# if the upsell was loaded, rather than created then update the from
@@ -70,6 +75,7 @@ module Aristotle
 							from_product: event.from_product,
 							src_created_at: event.event_created_at,
 							impression_event: event,
+							upsell_type: upsell_type,
 						)
 						puts "upsell_impression created #{upsell_impression.attributes.to_json}"
 					elsif ['bundle_upsell_accepted', 'upsell_accepted'].include?( event.name )
@@ -113,6 +119,7 @@ module Aristotle
 									src_created_at: nil,
 									event_data_src: event.data_src,
 									accepted_event: event,
+									upsell_type: upsell_type,
 								)
 								upsell_impressions = Aristotle::UpsellImpression.where( accepted_event: event )
 							end
