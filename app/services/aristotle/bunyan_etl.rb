@@ -55,13 +55,21 @@ module Aristotle
 					if ['upsell_offered', 'bundle_upsell_offered'].include?( event.name )
 						upsell_impression = Aristotle::UpsellImpression.where( impression_event: event ).first
 
+						puts "event.src_client_id #{event.src_client_id}"
+						if event.src_client_id.blank?
+							puts "event.src_client_id BLANK!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+							puts "event.attributes.to_json #{event.attributes.to_json}\n\n"
+							puts "src_event.to_json #{src_event.to_json}\n\n"
+						end
+
 						if upsell_impression.blank?
 							end_at = Aristotle::Event.where( data_src: event.data_src, src_client_id: event.src_client_id, event_created_at: (event.event_created_at + 1.second)..Time.now, name: 'purchase' ).order(event_created_at: :asc).limit(1).pluck(:event_created_at).first
 							end_at ||= Time.now
 
 							upsell_impression = Aristotle::UpsellImpression.where.not( accepted_at: nil ).where( impression_event: nil, src_client_id: event.src_client_id, accepted_at: event.event_created_at..end_at, upsell_offer: event.offer, upsell_product: event.product ).first
 
-							puts "upsell_impression HIT!!!!!!!!!!? #{upsell_impression.present?}"
+							puts "upsell_impression HIT" if upsell_impression.present?
+							puts "upsell_impression MISS" if upsell_impression.blank?
 						end
 
 						if upsell_impression.blank?
