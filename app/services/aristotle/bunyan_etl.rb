@@ -65,7 +65,7 @@ module Aristotle
 						end
 
 						if upsell_impression.blank?
-							upsell_impression = Aristotle::UpsellImpression.create(
+							upsell_impression = Aristotle::UpsellImpression.create!(
 								customer: event.customer,
 								from_offer: event.from_offer,
 								from_product: event.from_product,
@@ -121,7 +121,7 @@ module Aristotle
 							upsell_impressions ||= product_upsell_impressions if upsell_impressions.blank? && event.name = 'bundle_upsell_accepted'
 
 							if upsell_impressions.blank?
-								Aristotle::UpsellImpression.create(
+								Aristotle::UpsellImpression.create!(
 									customer: event.customer,
 									from_offer: event.from_offer,
 									from_product: event.from_product,
