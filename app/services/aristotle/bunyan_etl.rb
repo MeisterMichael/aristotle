@@ -309,7 +309,7 @@ module Aristotle
 
 					if target_obj[:src_offer_id] && event.respond_to?(:from_offer)
 						event.from_offer		||= Offer.where( data_src: @bazaar_data_sources, src_offer_id: "Bazaar::Offer\##{target_obj[:src_offer_id]}" ).first
-						event.from_offer		||= @bazaar_etl.transform_offer( src_order_offer[:src_offer], data_src: event.data_src )
+						event.from_offer		||= @bazaar_etl.transform_offer( target_obj[:src_offer], data_src: event.data_src ) if target_obj[:src_offer].present?
 						event.from_product	||= event.from_offer.try(:product)
 					end
 
