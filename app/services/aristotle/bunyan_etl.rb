@@ -496,6 +496,8 @@ SQL
 
 			end
 
+			last_event_id
+
 		end
 
 	end
