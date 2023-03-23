@@ -888,7 +888,7 @@ module Aristotle
 				client_id ||= event[:client_id]
 			end
 
-			if client_id.present?
+			if client_id.present? && event.present?
 				previous_client_orders = Aristotle::Order.where(src_event_client_id: event[:client_id], src_created_at: Time.at(0)..src_order[:created_at] ).where.not( src_order_id: src_order[:id] )
 				state_attributes[:event_client_purchase_index] = previous_client_orders.count + 1
 				puts "state_attributes[:event_client_purchase_index] #{state_attributes[:event_client_purchase_index]}"
