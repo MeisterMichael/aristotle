@@ -422,18 +422,18 @@ module Aristotle
 			# end
 
 			if src_order[:shipping_address_id]
-				src_order_shipping_address = exec_query("SELECT * FROM geo_addresses WHERE id = #{src_order[:shipping_address_id]}").first.symbolize_keys
+				src_order_shipping_address = exec_query("SELECT * FROM geo_addresses WHERE id = #{src_order[:shipping_address_id]}").first.try(:symbolize_keys)
 				if src_order_shipping_address.present?
 					src_order[:shipping_address] = src_order_shipping_address
 					src_order[:shipping_address][:geo_state] = exec_query("SELECT * FROM geo_states WHERE id = #{src_order[:shipping_address][:geo_state_id]}").first.try(:symbolize_keys) if src_order[:shipping_address][:geo_state_id].present?
-					src_order[:shipping_address][:geo_country] = exec_query("SELECT * FROM geo_countries WHERE id = #{src_order[:shipping_address][:geo_country_id]}").first.symbolize_keys
+					src_order[:shipping_address][:geo_country] = exec_query("SELECT * FROM geo_countries WHERE id = #{src_order[:shipping_address][:geo_country_id]}").first.try(:symbolize_keys)
 				end
 			end
 			# if src_order[:shipping_address_id]
 			# 	src_order[:shipping_address] = exec_query("SELECT * FROM geo_addresses WHERE id = #{src_order[:shipping_address_id]}").first.try(:symbolize_keys)
 			# 	if src_order[:shipping_address]
 			# 		src_order[:shipping_address][:geo_state] = exec_query("SELECT * FROM geo_states WHERE id = #{src_order[:shipping_address][:geo_state_id]}").first.try(:symbolize_keys) if src_order[:shipping_address][:geo_state_id].present?
-			# 		src_order[:shipping_address][:geo_country] = exec_query("SELECT * FROM geo_countries WHERE id = #{src_order[:shipping_address][:geo_country_id]}").first.symbolize_keys
+			# 		src_order[:shipping_address][:geo_country] = exec_query("SELECT * FROM geo_countries WHERE id = #{src_order[:shipping_address][:geo_country_id]}").first.try(:symbolize_keys)
 			# 	else
 			# 		src_order[:shipping_address] = {}
 			# 	end
@@ -445,7 +445,7 @@ module Aristotle
 			src_order[:shipments] = exec_query("SELECT * FROM bazaar_shipments WHERE order_id = #{src_order[:id]} ORDER BY id ASC").to_a.collect(&:symbolize_keys)
 			src_order[:shipments].each do |shipment|
 				shipment[:status] = shipment[:status].to_i
-				shipment[:warehouse] = exec_query("SELECT * FROM bazaar_warehouses WHERE id = #{shipment[:warehouse_id]}").first.symbolize_keys if shipment[:warehouse_id].present?
+				shipment[:warehouse] = exec_query("SELECT * FROM bazaar_warehouses WHERE id = #{shipment[:warehouse_id]}").first.try(:symbolize_keys) if shipment[:warehouse_id].present?
 			end
 
 			# first shipped?
