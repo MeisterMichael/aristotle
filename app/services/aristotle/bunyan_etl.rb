@@ -126,7 +126,7 @@ module Aristotle
 							)
 
 							upsell_impressions = offer_upsell_impressions
-							upsell_impressions ||= product_upsell_impressions if upsell_impressions.blank? && event.name = 'bundle_upsell_accepted'
+							upsell_impressions = product_upsell_impressions.order(src_created_at: :desc).limit(1) if upsell_impressions.blank? && event.name == 'bundle_upsell_accepted'
 
 							if upsell_impressions.blank?
 								Aristotle::UpsellImpression.create!(
