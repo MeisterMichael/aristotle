@@ -163,6 +163,11 @@ module Aristotle
 
 						upsell_impressions = Aristotle::UpsellImpression.where( purchase_event: event )
 
+						if upsell_impressions.blank? && event.name == 'upsell'
+							accepted_events = Aristotle::Event.where( data_src: event.data_src, src_client_id: event.src_client_id, event_created_at: (event.event_created_at - 2.seconds)..(event.event_created_at + 2.seconds), name: 'upsell_accepted' )
+							upsell_impressions = Aristotle::UpsellImpression.where( accepted_event: accepted_events )
+						end
+
 						if upsell_impressions.blank?
 							last_purchase_event = Aristotle::Event.where( data_src: event.data_src, src_client_id: event.src_client_id, event_created_at: Time.at(0)..(event.event_created_at - 1.second), name: 'purchase' ).order(event_created_at: :desc).limit(1).first
 							start_at = last_purchase_event.try(:event_created_at) || Time.at(0)
@@ -229,7 +234,7 @@ module Aristotle
 
 			src_event[:target_obj] ||= @bazaar_etl.extract_item( src_event[:target_obj_type], src_event[:target_obj_id] )
 
-			puts "process_src_event	#{src_event[:created_at]}	#{src_event[:name]}"#	#{src_event[:target_obj_type]}	#{src_event[:target_obj_id]}	#{src_event[:target_obj].present?}"
+			puts "process_src_event	#{src_event[:created_at]}	#{src_event[:name]}	#{src_event_id}"#	#{src_event[:target_obj_type]}	#{src_event[:target_obj_id]}	#{src_event[:target_obj].present?}"
 
 			event = Event.where( data_src: @data_src, src_event_id: src_event_id, name: src_event[:name] ).first if @options[:allow_updates]
 			if event.present?
@@ -315,7 +320,7 @@ module Aristotle
 
 					if target_obj[:offer]
 						event.offer 	||= Offer.where( data_src: @bazaar_data_sources, src_offer_id: "Bazaar::Offer\##{target_obj[:offer_id]}" ).first
-						event.offer 	||= @bazaar_etl.transform_offer( src_order_offer[:offer], data_src: event.data_src )
+						event.offer 	||= @bazaar_etl.transform_offer( target_obj[:offer], data_src: event.data_src )
 					end
 
 					if event.offer.blank?
