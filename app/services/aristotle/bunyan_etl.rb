@@ -102,9 +102,18 @@ module Aristotle
 
 						upsell_impressions = Aristotle::UpsellImpression.where( accepted_event: event )
 						if upsell_impressions.blank? && event.offer.present?
-							start_at = Aristotle::Event.where( data_src: event.data_src, src_client_id: event.src_client_id, event_created_at: Time.at(0)..(event.event_created_at - 1.second), name: 'purchase' ).order(event_created_at: :desc).limit(1).pluck(:event_created_at).first
-							start_at ||= Time.at(0)
-							start_at = start_at + 1.second
+
+							if upsell_type == 'post_sale'
+
+								start_at = event.event_created_at - 30.minutes
+
+							else
+
+								start_at = Aristotle::Event.where( data_src: event.data_src, src_client_id: event.src_client_id, event_created_at: Time.at(0)..(event.event_created_at - 1.second), name: 'purchase' ).order(event_created_at: :desc).limit(1).pluck(:event_created_at).first
+								start_at ||= Time.at(0)
+								start_at = start_at + 1.second
+
+							end
 
 							base_upsell_impressions = Aristotle::UpsellImpression.where(
 								event_data_src: event.data_src,
@@ -112,6 +121,7 @@ module Aristotle
 								accepted_event: nil,
 								src_created_at: start_at..event.event_created_at,
 							)
+							base_upsell_impressions = base_upsell_impressions.where( upsell_type: upsell_type ) if upsell_type.present?
 
 							offer_upsell_impressions = base_upsell_impressions.where(
 								upsell_offer: event.offer,
