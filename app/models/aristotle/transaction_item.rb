@@ -51,6 +51,10 @@ module Aristotle
 			where( "NOT( #{data_src_order_id_eqaution} IN (?) )", TransactionItem.unscoped.group(:data_src, :src_order_id).having("SUM(aristotle_transaction_items.sub_total) = 0 AND SUM(ABS(aristotle_transaction_items.sub_total)) > 0").select("distinct #{data_src_order_id_eqaution}") )
 		end
 
+		def self.upsell_impressions
+			self.joins('INNER JOIN aristotle_upsell_impressions ON aristotle_upsell_impressions.order_id = aristotle_transaction_items.order_id AND aristotle_upsell_impressions.upsell_offer_id = aristotle_transaction_items.offer_id')
+		end
+
 		def numeric_field_validation( options = {} )
 			options[:allowed_deviation] ||= 0
 

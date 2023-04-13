@@ -211,17 +211,40 @@ module Aristotle
 							# puts "start_at #{start_at.to_json}"
 						end
 
-						update_count = upsell_impressions.update_all(
+						upsell_impression_attributes = {
 							purchase_event_id: event.id,
-							order_data_src: event.order.try(:data_src),
+							order_data_src: event.data_src,
 							src_order_id: event.src_target_obj_id,
-							order_id: event.order.try(:id),
 							purchased_at: event.event_created_at,
 							customer_id: event.customer.try(:id),
-						)
+						}
+
+						if event.order.present?
+							upsell_impression_attributes = upsell_impression_attributes.merge(
+								order_data_src: event.order.data_src,
+								order_id: event.order.id,
+							)
+						end
+
+						update_count = upsell_impressions.update_all(upsell_impression_attributes)
+
+						if event.order.present?
+							puts " -> update_upsell_impressions start order"
+							update_upsell_impressions( event.order.data_src, event.order.src_order_id )
+						elsif event.src_target_obj_id.present? && event.name == 'purchase'
+							puts " -> update_upsell_impressions start src_target_obj_id"
+							update_upsell_impressions( event.data_src, event.src_target_obj_id )
+						else
+							puts " -> update_upsell_impressions start nope"
+						end
 
 						# puts "event.attributes.to_json #{event.attributes.to_json}"
-						puts "upsell_impressions purchased #{event.id} #{Aristotle::UpsellImpression.where( purchase_event: event ).collect(&:attributes).to_json}"
+						upsell_impressions_attributes = Aristotle::UpsellImpression.where( purchase_event: event ).collect(&:attributes)
+						if upsell_impressions_attributes.present?
+							puts "upsell_impressions purchased (done) #{event.id} #{event.src_event_id} #{upsell_impressions_attributes.to_json}"
+						else
+							puts "upsell_impressions purchased (none) #{event.id} #{event.src_event_id} #{upsell_impressions_attributes.to_json}"
+						end
 					end
 				end
 			rescue Exception => e
@@ -512,6 +535,69 @@ SQL
 			end
 
 			last_event_id
+
+		end
+
+		def update_upsell_impressions( data_src, src_order_id )
+			unless src_order_id.present? && data_src.present?
+				puts " -> update_upsell_impressions #{data_src} #{src_order_id} ID Not Present"
+				return
+			end
+			puts " -> update_upsell_impressions #{data_src} #{src_order_id}"
+
+			upsell_impressions = Aristotle::UpsellImpression.where( order_data_src: data_src, src_order_id: src_order_id )
+			order_transaction_items = Aristotle::TransactionItem.where( data_src: data_src, src_order_id: src_order_id )
+
+			puts " -> update_upsell_impressions count #{upsell_impressions.count} #{order_transaction_items.count}"
+			puts " -> update_upsell_impressions upsell_impressions hit #{upsell_impressions.count}" if upsell_impressions.present?
+			# puts " -> update_upsell_impressions order_transaction_items hit #{order_transaction_items.count}" if order_transaction_items.present?
+
+			upsell_impressions_changes = {
+				order_charge_sub_total: order_transaction_items.charge.sum(:sub_total),
+				order_refund_sub_total: order_transaction_items.refund.sum(:sub_total),
+				order_upsell_count: upsell_impressions.count,
+			}
+			upsell_impressions_changes_count = upsell_impressions.update_all( upsell_impressions_changes )
+			puts "     upsell_impressions #{upsell_impressions_changes.to_json} #{upsell_impressions_changes_count}" if upsell_impressions.present?
+
+			upsell_impressions.each do |upsell_impression|
+
+				offer_transaction_items = order_transaction_items.where( offer_id: upsell_impression.upsell_offer_id )
+				upsell_impression.subscription_id = offer_transaction_items.where.not( subscription_id: nil ).limit(1).pluck(:subscription_id).first
+				upsell_impression.offer_charge_sub_total = offer_transaction_items.charge.sum(:sub_total)
+				upsell_impression.offer_refund_sub_total = offer_transaction_items.refund.sum(:sub_total)
+				puts "     upsell_impression #{upsell_impression.changes.to_json}"
+				upsell_impression.save
+
+			end
+
+
+
+			# Update LTV Fields
+			subscription_ids = order_transaction_items.where.not( subscription_id: nil ).pluck(:subscription_id)
+			lifetime_order_ids = Aristotle::TransactionItem.where( subscription_id: subscription_ids ).pluck('distinct order_id')
+
+			lifetime_transaction_items = Aristotle::TransactionItem.where( order_id: lifetime_order_ids )
+			subscription_upsell_impressions = Aristotle::UpsellImpression.where( subscription_id: subscription_ids )
+			puts " -> update_upsell_impressions ltv count #{subscription_upsell_impressions.count} #{lifetime_transaction_items.count}"
+			puts " -> update_upsell_impressions subscription_upsell_impressions hit #{subscription_upsell_impressions.count}" if subscription_upsell_impressions.present?
+			# puts " -> update_upsell_impressions lifetime_transaction_items hit #{lifetime_transaction_items.count}" if lifetime_transaction_items.present?
+
+			subscription_upsell_impressions_changes = {
+				order_ltv_charge_sub_total: lifetime_transaction_items.charge.sum(:sub_total),
+				order_ltv_refund_sub_total: lifetime_transaction_items.refund.sum(:sub_total),
+			}
+			subscription_upsell_impressions_changes_count = subscription_upsell_impressions.update_all( subscription_upsell_impressions_changes )
+			puts "     subscription_upsell_impressions #{subscription_upsell_impressions_changes.to_json} #{subscription_upsell_impressions_changes_count}" if subscription_upsell_impressions.present?
+
+
+			subscription_upsell_impressions.each do |upsell_impression|
+				offer_transaction_items = Aristotle::TransactionItem.where( subscription_id: upsell_impression.subscription_id, offer_id: upsell_impression.upsell_offer_id )
+				upsell_impression.offer_ltv_charge_sub_total = offer_transaction_items.charge.sum(:sub_total)
+				upsell_impression.offer_ltv_refund_sub_total = offer_transaction_items.refund.sum(:sub_total)
+				puts "     subscription_upsell_impression #{upsell_impression.changes.to_json}"
+				upsell_impression.save
+			end
 
 		end
 
