@@ -178,25 +178,44 @@ module Aristotle
 							upsell_impressions = Aristotle::UpsellImpression.where( accepted_event: accepted_events )
 						end
 
+						src_order_id = nil
+						if event.order.present?
+							src_order_id = event.order.src_order_id
+						else
+							if event.src_target_obj_type == 'Bazaar::Order'
+								src_order_id = event.src_target_obj_id
+							elsif event.src_target_obj_type == 'Bazaar::Transaction'
+								src_transaction = @bazaar_etl.extract_item( event.src_target_obj_type, event.src_target_obj_id )
+								src_order_id = src_transaction[:parent_obj_id] if src_transaction[:parent_obj_type] == 'Bazaar::Order'
+
+								raise Exception.new( "Unable to find order id from transaction #{src_transaction.to_json}" ) unless src_order_id.present?
+							else
+								raise Exception.new( "Invalid src_target_obj_type #{event.src_target_obj_type}" )
+							end
+						end
+						raise Exception.new( "Unable to find order id from event #{event.attributes.to_json}" ) unless src_order_id.present?
+
 						if upsell_impressions.blank?
 							last_purchase_event = Aristotle::Event.where( data_src: event.data_src, src_client_id: event.src_client_id, event_created_at: Time.at(0)..(event.event_created_at - 1.second), name: 'purchase' ).order(event_created_at: :desc).limit(1).first
 							start_at = last_purchase_event.try(:event_created_at) || Time.at(0)
 							start_at = start_at + 1.second
+
+							offer_ids = []
 
 							if event.order.present?
 
 								offer_ids = Aristotle::TransactionItem.where( order: event.order ).charge.pluck('distinct offer_id')
 
 							else
-								if event.src_target_obj_type == 'Bazaar::Order'
-									src_order = @bazaar_etl.extract_item( event.src_target_obj_type, event.src_target_obj_id )
-								elsif event.src_target_obj_type == 'Bazaar::Transaction'
-									src_transaction = @bazaar_etl.extract_item( event.src_target_obj_type, event.src_target_obj_id )
-									src_order = @bazaar_etl.extract_item( src_transaction[:parent_obj_type], src_transaction[:parent_obj_id] )
+
+								src_order = @bazaar_etl.extract_item( 'Bazaar::Order', src_order_id ) if src_order_id.present?
+
+								if src_order.present?
+									offers = src_order[:order_offers].collect{ |src_order_offer| @bazaar_etl.transform_offer( src_order_offer[:offer], data_src: event.data_src ) }
+									offer_ids = offers.collect(&:id)
+									# puts "the long way to get offer ids: #{offer_ids.to_json}"
 								end
-								offers = src_order[:order_offers].collect{ |src_order_offer| @bazaar_etl.transform_offer( src_order_offer[:offer], data_src: event.data_src ) }
-								offer_ids = offers.collect(&:id)
-								# puts "the long way to get offer ids: #{offer_ids.to_json}"
+
 							end
 
 							upsell_impressions = Aristotle::UpsellImpression.where(
@@ -214,7 +233,7 @@ module Aristotle
 						upsell_impression_attributes = {
 							purchase_event_id: event.id,
 							order_data_src: event.data_src,
-							src_order_id: event.src_target_obj_id,
+							src_order_id: src_order_id,
 							purchased_at: event.event_created_at,
 							customer_id: event.customer.try(:id),
 						}
@@ -483,7 +502,7 @@ SQL
 			page_i = 1
 			while( true ) do
 				puts "Page #{page_i} (last_event_id: #{last_event_id}) - Loading"
-				event_rows = exec_query( event_query, last_event_id: last_event_id, max_created_at: max_created_at, min_created_at: min_created_at, excluded_event_names: excluded_event_names )
+				event_rows = exec_query( event_query, last_event_id: last_event_id.to_i, max_created_at: max_created_at, min_created_at: min_created_at, excluded_event_names: excluded_event_names )
 				puts "Page #{page_i} - Loaded"
 
 				client_row_cache = {}
