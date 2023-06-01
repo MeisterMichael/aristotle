@@ -477,17 +477,34 @@ module Aristotle
 				order_offer[:subscription] ||= extract_item( 'Bazaar::Subscription', order_offer[:subscription_id] )
 				order_offer[:offer] = extract_item( 'Bazaar::Offer', order_offer[:offer_id] )
 
-				sku_query = <<-SQL
-				SELECT bazaar_skus.*, bazaar_offer_skus.quantity
+				historical_sku_query = <<-SQL
+				SELECT bazaar_skus.*, bazaar_offer_skus.quantity, bazaar_offer_skus.start_interval, bazaar_offer_skus.max_intervals
 				FROM bazaar_skus
 					INNER JOIN bazaar_offer_skus ON bazaar_offer_skus.sku_id = bazaar_skus.id
 				WHERE bazaar_offer_skus.start_interval <= #{order_offer[:subscription_interval]}
-				AND (bazaar_offer_skus.max_intervals IS NULL OR bazaar_offer_skus.start_interval + bazaar_offer_skus.max_intervals <= #{order_offer[:subscription_interval]})
-				AND bazaar_offer_skus.status = 1
+				AND (bazaar_offer_skus.max_intervals IS NULL OR (bazaar_offer_skus.start_interval + bazaar_offer_skus.max_intervals - 1) >= #{order_offer[:subscription_interval]})
+				AND (
+					( bazaar_offer_skus.status != 1 AND '#{order_offer[:created_at]}' BETWEEN bazaar_offer_skus.created_at AND bazaar_offer_skus.trashed_at )
+					OR
+					( bazaar_offer_skus.status = 1 AND '#{order_offer[:created_at]}' > bazaar_offer_skus.created_at )
+				)
 				AND bazaar_offer_skus.parent_obj_type = 'Bazaar::Offer'
 				AND bazaar_offer_skus.parent_obj_id = #{order_offer[:offer_id]}
 				SQL
-				order_offer[:skus] = exec_query(sku_query).to_a.collect(&:symbolize_keys)
+
+
+				# sku_query = <<-SQL
+				# SELECT bazaar_skus.*, bazaar_offer_skus.quantity
+				# FROM bazaar_skus
+				# 	INNER JOIN bazaar_offer_skus ON bazaar_offer_skus.sku_id = bazaar_skus.id
+				# WHERE bazaar_offer_skus.start_interval <= #{order_offer[:subscription_interval]}
+				# AND (bazaar_offer_skus.max_intervals IS NULL OR (bazaar_offer_skus.start_interval + bazaar_offer_skus.max_intervals - 1) >= #{order_offer[:subscription_interval]})
+				# AND bazaar_offer_skus.status = 1
+				# AND bazaar_offer_skus.parent_obj_type = 'Bazaar::Offer'
+				# AND bazaar_offer_skus.parent_obj_id = #{order_offer[:offer_id]}
+				# SQL
+				order_offer[:skus] = exec_query(historical_sku_query).to_a.collect(&:symbolize_keys)
+				# order_offer[:skus] = exec_query(sku_query).to_a.collect(&:symbolize_keys) if order_offer[:skus].blank?
 			end
 
 
@@ -1242,6 +1259,7 @@ module Aristotle
 						src_subscription_id: src_subscription_id.to_s,
 						subscription_attributes: subscription_attributes,
 						amount: amount,
+						sku_cache: order_offer[:skus],
 					}
 
 					transaction_skus = TransactionSku.where( data_src: @data_src, offer: offer, transaction_type: 'charge', src_line_item_id: order_offer[:id].to_s ).group(:sku_id,:sku_value).select(:sku_id,:sku_value,'COUNT(*) / COUNT(distinct transaction_item_id) as quantity').order( sku_id: :asc )

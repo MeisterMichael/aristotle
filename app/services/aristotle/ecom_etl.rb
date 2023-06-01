@@ -654,7 +654,7 @@ module Aristotle
 				transaction_skus = []
 
 				transaction_skus_attributes.each do |transaction_sku_attributes|
-					transaction_sku = TransactionSku.new( transaction_item_attributes )
+					transaction_sku = TransactionSku.new( transaction_item_attributes.except(:sku_cache) )
 					transaction_sku.attributes = transaction_sku_attributes
 					transaction_sku.transaction_item = transaction_item
 
