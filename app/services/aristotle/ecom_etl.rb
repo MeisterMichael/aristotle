@@ -643,6 +643,7 @@ module Aristotle
 
 					transaction_sku.attributes = transaction_item_attributes.except(:sku_cache)
 					transaction_sku.attributes = transaction_sku_attributes.except(:sku_cache) if transaction_sku_attributes.present?
+					transaction_sku.transaction_item = transaction_item
 
 					puts "transaction_sku.changes #{transaction_sku.changes.to_json}" if transaction_sku.changes.present?
 
