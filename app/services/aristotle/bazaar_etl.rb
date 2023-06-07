@@ -189,37 +189,42 @@ module Aristotle
 				order_id_batches = []
 			end
 
-			order_batch_query = <<-SQL
-				SELECT * FROM bazaar_orders WHERE id IN ({order_ids}) ORDER BY id ASC;
-			SQL
 
 
 			order_id_batches.each_with_index do |order_ids, index|
 				page = (index + 1)
 				puts "Loading Next Page #{page} / #{order_id_batches.count}"
-
-				page_query = order_batch_query.gsub('{order_ids}', order_ids)
-				# puts page_query
-				src_orders = exec_query( page_query )
-
-				puts "Processing Page #{page} / #{order_id_batches.count} (count #{src_orders.count})"
-
-				src_orders.each do |src_order|
-					src_order.symbolize_keys!
-
-					if src_order[:status].to_i == ORDER_STATUS_ACTIVE || TransactionItem.where( data_src: @data_src, src_transaction_id: src_order[:id] ).present?
-
-						src_order[:properties] = parse_hstore_string( src_order[:properties] )
-						src_order[:total] = src_order[:total].to_i
-
-						process_order( src_order, @data_src, 'pull' )
-					end
-				end
+				pull_and_process_order_ids( order_ids, args )
 				puts "Completed Page #{page} / #{order_id_batches.count}"
-
 			end
 
 			puts "Finished"
+		end
+
+		def pull_and_process_order_ids( order_ids, args = {} )
+			order_batch_query = <<-SQL
+				SELECT * FROM bazaar_orders WHERE id IN ({order_ids}) ORDER BY id ASC;
+			SQL
+
+
+			page_query = order_batch_query.gsub('{order_ids}', order_ids)
+
+			# puts page_query
+			src_orders = exec_query( page_query )
+
+			puts "Processing Page (count #{src_orders.count})"
+
+			src_orders.each do |src_order|
+				src_order.symbolize_keys!
+
+				if src_order[:status].to_i == ORDER_STATUS_ACTIVE || TransactionItem.where( data_src: @data_src, src_transaction_id: src_order[:id] ).present?
+
+					src_order[:properties] = parse_hstore_string( src_order[:properties] )
+					src_order[:total] = src_order[:total].to_i
+
+					process_order( src_order, @data_src, 'pull' )
+				end
+			end
 		end
 
 		def pull_and_process_reviews( args = {} )
