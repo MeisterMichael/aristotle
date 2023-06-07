@@ -106,7 +106,7 @@ module Aristotle
 			src_refund = self.extract_additional_attributes_for_refund( src_refund )
 
 			src_transaction_id = self.extract_id_from_src_refund( src_refund )
-			# puts "\n\nRefund #{src_transaction_id}"
+			puts "\n\nRefund #{src_transaction_id}"
 			# puts JSON.pretty_generate src_refund
 
 			refund_transaction_items = TransactionItem.refund.where( data_src: data_src, src_transaction_id: src_transaction_id ).to_a
@@ -116,6 +116,12 @@ module Aristotle
 				puts "Unable to find order for src_transaction_id #{src_transaction_id}"
 				return refund_transaction_items
 			end
+
+			# set defaults and denormatized order data for all refunds
+			# transaction items
+			default_transaction_item_attributes = { transaction_type: 'refund', data_src: data_src, src_transaction_id: src_transaction_id, order_id: order.id }
+			default_transaction_item_attributes.merge!( EcomEtl.extract_attributes_from_model( order, EcomEtl.DENORMALIZED_ORDER_ATTRIBUTES ) )
+
 
 			state_attributes = self.extract_state_attributes_from_src_refund( src_refund )
 
@@ -139,6 +145,8 @@ module Aristotle
 					order_transaction_item = order_transaction_items.find{ |oti| oti.src_line_item_id == refund_transaction_item.src_line_item_id }
 
 					if transaction_item_attributes.present? && order_transaction_item.present?
+						transaction_skus_attributes = transaction_item_attributes.delete(:transaction_skus_attributes)
+						die() if transaction_skus_attributes.blank?
 
 						transaction_items_attributes.delete_at( transaction_items_attributes.index(transaction_item_attributes) )
 						order_transaction_items.delete_at( order_transaction_items.index(order_transaction_item) )
@@ -147,8 +155,42 @@ module Aristotle
 						refund_transaction_item.commission = transaction_item_attributes[:commission]
 
 						refund_transaction_skus.each do |refund_transaction_sku|
-							refund_transaction_sku.channel_partner = order_transaction_item.channel_partner
-							refund_transaction_sku.commission = transaction_item_attributes[:commission]
+							transaction_sku_attributes = transaction_skus_attributes.find{ |row| row[:sku].present? && refund_transaction_sku.sku.present? && row[:sku] == refund_transaction_sku.sku }
+
+							if transaction_sku_attributes.present?
+								puts "Updating refund_transaction_sku"
+								transaction_skus_attributes.delete_at( transaction_skus_attributes.index(transaction_sku_attributes) )
+
+								refund_transaction_sku.channel_partner = order_transaction_item.channel_partner
+								refund_transaction_sku.commission = transaction_sku_attributes[:commission]
+								puts " -> attributes: #{refund_transaction_sku.attributes.to_json}"
+								puts " -> changes: #{refund_transaction_sku.changes.to_json}"
+								refund_transaction_sku.save
+							else
+
+								message = "src_transaction_id: #{src_transaction_id}, src_sku_id: #{refund_transaction_sku.src_sku_id} "
+								message = "#{message}transaction_sku_attributes Not found!!! "
+								raise Exception.new( "TransactionItem Update Error: #{message}" )
+
+							end
+
+
+						end
+
+						transaction_skus_attributes.each do |transaction_sku_attributes|
+							puts "Creating refund_transaction_sku (1)"
+							refund_transaction_sku = TransactionSku.new( default_transaction_item_attributes )
+							refund_transaction_sku.attributes = transaction_item_attributes
+							refund_transaction_sku.attributes = state_attributes
+							refund_transaction_sku.attributes = transaction_sku_attributes
+							refund_transaction_sku.transaction_item = refund_transaction_item
+							puts " -> #{refund_transaction_sku.attributes.to_json}"
+							puts " -> vs: #{refund_transaction_item.attributes.to_json}"
+
+							unless refund_transaction_sku.save
+								raise Exception.new( "TransactionSku Create Error: #{refund_transaction_sku.errors.full_messages}" )
+							end
+
 						end
 
 					else
@@ -183,14 +225,10 @@ module Aristotle
 				refund_transaction_items = []
 				refund_transaction_skus = []
 
-				# set defaults and denormatized order data for all refunds
-				# transaction items
-				default_transaction_item_attributes = { transaction_type: 'refund', data_src: data_src, src_transaction_id: src_transaction_id, order_id: order.id }
-				default_transaction_item_attributes.merge!( EcomEtl.extract_attributes_from_model( order, EcomEtl.DENORMALIZED_ORDER_ATTRIBUTES ) )
-
 				# Create new refund transaction items
 				transaction_items_attributes.each do |transaction_item_attributes|
 					transaction_skus_attributes = transaction_item_attributes.delete(:transaction_skus_attributes)
+					die() if transaction_skus_attributes.blank?
 
 					refund_transaction_item = TransactionItem.new( default_transaction_item_attributes )
 					refund_transaction_item.attributes = transaction_item_attributes
@@ -203,13 +241,14 @@ module Aristotle
 					refund_transaction_items << refund_transaction_item
 
 					transaction_skus_attributes.each do |transaction_sku_attributes|
-
+						puts "Creating refund_transaction_sku (2)"
 						refund_transaction_sku = TransactionSku.new( default_transaction_item_attributes )
 						refund_transaction_sku.attributes = transaction_item_attributes
-						refund_transaction_sku.attributes = transaction_sku_attributes
 						refund_transaction_sku.attributes = state_attributes
+						refund_transaction_sku.attributes = transaction_sku_attributes
 						refund_transaction_sku.transaction_item = refund_transaction_item
-
+						puts " -> #{refund_transaction_sku.attributes.to_json}"
+						puts " -> vs: #{refund_transaction_item.attributes.to_json}"
 						unless refund_transaction_sku.save
 							raise Exception.new( "TransactionSku Create Error: #{refund_transaction_sku.errors.full_messages}" )
 						end
