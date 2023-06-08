@@ -145,8 +145,19 @@ module Aristotle
 					order_transaction_item = order_transaction_items.find{ |oti| oti.src_line_item_id == refund_transaction_item.src_line_item_id }
 
 					if transaction_item_attributes.present? && order_transaction_item.present?
-						transaction_skus_attributes = transaction_item_attributes.delete(:transaction_skus_attributes)
-						die() if transaction_skus_attributes.blank?
+
+						# Use transaction item attributes from the transaction item  source
+						# to calculate sku values, those that are fresh from the source can
+						# be different from what is in the transaction items, creating a
+						# discrepency.
+						order_transaction_skus = Aristotle::TransactionSku.where( src_line_item_id: order_transaction_item.src_line_item_id, data_src: order_transaction_item.data_src, src_transaction_id: order_transaction_item.src_transaction_id, offer: order_transaction_item.offer )
+						transaction_skus_attributes = extract_transaction_skus_attributes_from_transaction_item_attributes( refund_transaction_item.attributes.symbolize_keys, order_transaction_skus.collect{|ots| { sku: ots.sku, sku_value: -ots.sku_value } } )
+						transaction_skus_attributes.each{|transaction_sku_attributes| transaction_sku_attributes.delete(:sku_cache) }
+						transaction_item_attributes.delete(:transaction_skus_attributes)
+
+						# # Use transaction item attributes fresh from source to calculate sku values
+						# transaction_skus_attributes = transaction_item_attributes.delete(:transaction_skus_attributes)
+						# die() if transaction_skus_attributes.blank?
 
 						transaction_items_attributes.delete_at( transaction_items_attributes.index(transaction_item_attributes) )
 						order_transaction_items.delete_at( order_transaction_items.index(order_transaction_item) )
@@ -158,7 +169,7 @@ module Aristotle
 							transaction_sku_attributes = transaction_skus_attributes.find{ |row| row[:sku].present? && refund_transaction_sku.sku.present? && row[:sku] == refund_transaction_sku.sku }
 
 							if transaction_sku_attributes.present?
-								puts "Updating refund_transaction_sku"
+								puts "Updating refund_transaction_sku #{refund_transaction_sku.id}"
 								transaction_skus_attributes.delete_at( transaction_skus_attributes.index(transaction_sku_attributes) )
 
 								refund_transaction_sku.channel_partner = order_transaction_item.channel_partner
@@ -966,6 +977,7 @@ module Aristotle
 		end
 
 		def transform_full_refund_into_transaction_items_attributes( src_refund, order_transaction_items )
+			# puts "transform_full_refund_into_transaction_items_attributes"
 			transaction_items_attributes = []
 
 			order_transaction_items.each do |order_transaction_item|
@@ -1007,6 +1019,8 @@ module Aristotle
 		end
 
 		def transform_items_refund_into_transaction_items_attributes( line_items, order_transaction_items, aggregate_adjustments={} )
+			# puts "transform_items_refund_into_transaction_items_attributes"
+
 			transaction_items_attributes = []
 			line_items = line_items.collect(&:symbolize_keys)
 
@@ -1086,6 +1100,7 @@ module Aristotle
 		end
 
 		def transform_amount_refund_into_transaction_items_attributes( order_transaction_items, refund_total, args = {} )
+			# puts "transform_amount_refund_into_transaction_items_attributes"
 			log_string = ""
 
 			transaction_items_attributes = []
