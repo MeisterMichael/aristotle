@@ -151,8 +151,10 @@ module Aristotle
 						# be different from what is in the transaction items, creating a
 						# discrepency.
 						order_transaction_skus = Aristotle::TransactionSku.where( src_line_item_id: order_transaction_item.src_line_item_id, data_src: order_transaction_item.data_src, src_transaction_id: order_transaction_item.src_transaction_id, offer: order_transaction_item.offer )
-						transaction_skus_attributes = extract_transaction_skus_attributes_from_transaction_item_attributes( refund_transaction_item.attributes.symbolize_keys, order_transaction_skus.collect{|ots| { sku: ots.sku, sku_value: -ots.sku_value } } )
-						transaction_skus_attributes.each{|transaction_sku_attributes| transaction_sku_attributes.delete(:sku_cache) }
+						transaction_item_attributes_keys_to_preseve_for_skus = transaction_item_attributes.keys.collect(&:to_sym)
+						transaction_item_attributes_for_transaction_skus = refund_transaction_item.attributes.symbolize_keys.slice(*transaction_item_attributes_keys_to_preseve_for_skus)
+						transaction_skus_attributes = extract_transaction_skus_attributes_from_transaction_item_attributes( transaction_item_attributes_for_transaction_skus, order_transaction_skus.collect{|ots| { sku: ots.sku, sku_value: -ots.sku_value } } )
+						transaction_skus_attributes.each{|transaction_sku_attributes| transaction_sku_attributes }
 						transaction_item_attributes.delete(:transaction_skus_attributes)
 
 						# # Use transaction item attributes fresh from source to calculate sku values
