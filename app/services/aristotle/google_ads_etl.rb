@@ -222,16 +222,12 @@ segments.date
 FROM campaign
 WHERE segments.date BETWEEN '#{start_at}' AND '#{end_at}'
 QUERY
-			#
-			search_options = {
+
+			response = @ga_service.search( 
 				customer_id: @customer_id.gsub(/\-/,''),
 				query: query.strip,
-				page_size: 1000,
-			}
-
-			# puts search_options.to_json
-
-			response = @ga_service.search( search_options )
+				page_size: 1000, 
+			)
 
 			if response.response.results.empty?
 				puts sprintf("The given query returned no entries:\n %s", query)
