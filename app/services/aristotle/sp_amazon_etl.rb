@@ -1,4 +1,6 @@
 require 'reports-api-model'
+require 'orders-api-model'
+require 'tokens-api-model'
 
 module Aristotle
 	class SpAmazonEtl < EcomEtl
@@ -194,6 +196,9 @@ module Aristotle
 			refund_errors = []
 			last_settlement_report_at = nil
 
+			created_since = args[:created_after] || DateTime.parse(2.weeks.ago.to_s)
+			created_until = DateTime.parse(Time.now.to_s)
+
 			begin
 				next_token = nil
 				api = AmzSpApi::ReportsApiModel::ReportsApi.new(AmzSpApi::SpApiClient.new)
@@ -205,13 +210,15 @@ module Aristotle
 						# processing_statuses: ['processing_statuses_example'], # Array<String> | A list of processing statuses used to filter reports.
 						marketplace_ids: [@marketplace_id], # Array<String> | A list of marketplace identifiers used to filter reports. The reports returned will match at least one of the marketplaces that you specify.
 						page_size: 10, # Integer | The maximum number of reports to return in a single call.
-						created_since: DateTime.parse(2.weeks.ago.to_s), # DateTime | The earliest report creation date and time for reports to include in the response, in ISO 8601 date time format. The default is 90 days ago. Reports are retained for a maximum of 90 days.
-						# created_until: Time.now, # DateTime | The latest report creation date and time for reports to include in the response, in ISO 8601 date time format. The default is now.
+						created_since: created_since, # DateTime | The earliest report creation date and time for reports to include in the response, in ISO 8601 date time format. The default is 90 days ago. Reports are retained for a maximum of 90 days.
+						created_until: created_until, # DateTime | The latest report creation date and time for reports to include in the response, in ISO 8601 date time format. The default is now.
 						# next_token: 'next_token_example' # String | A string token returned in the response to your previous request. nextToken is returned when the number of results exceeds the specified pageSize value. To get the next page of results, call the getReports operation and include this token as the only parameter. Specifying nextToken with any other parameters will cause the request to fail.
 					}
 					report_options[:next_token] = next_token if next_token.present?
 
-					response = api.get_reports(report_options)
+					response = reports_api.get_reports(report_options)
+
+					next_token = response.next_token
 
 					puts "get_reports"
 					puts JSON.pretty_generate( JSON.parse(response.to_json))
@@ -222,7 +229,7 @@ module Aristotle
 						
 						# puts JSON.pretty_generate( JSON.parse(report.to_json))
 						
-						report_document_reference = api.get_report_document(report[:reportDocumentId])
+						report_document_reference = reports_api.get_report_document(report[:reportDocumentId])
 						
 						# puts JSON.pretty_generate( JSON.parse(report_document_reference.to_json))
 
@@ -282,7 +289,6 @@ module Aristotle
 		end
 
 		def pull_and_process_orders( args = {} )
-			use_order_api
 
 			if args[:created_after].nil? && args[:last_updated_after].nil?
 				args[:created_after] = Time.parse( AMAZON_EPOCH )
@@ -291,39 +297,91 @@ module Aristotle
 			page = 1
 			limit = 100
 
-			puts "Loading Next Page #{page}"
-			response = self.order_api_list_orders( args )
+			next_token = nil
 
-			while response.present?
-				next_token = response.parse['NextToken']
-				orders = self.extract_orders( response )
+			marketplace_ids = [@marketplace_id]
 
-				puts "Processing Page #{page} (count #{orders.count}); '#{next_token}'"
+			loop do
+				begin
 
-				orders.each do |order|
-					self.process_order( order, @data_src )
+					opts = { 
+						# created_after: args[:created_after].iso8601(3).to_s, # String | A date used for selecting orders created after (or at) a specified time. Only orders placed after the specified time are returned. Either the CreatedAfter parameter or the LastUpdatedAfter parameter is required. Both cannot be empty. The date must be in ISO 8601 format.
+						# created_before: 1.day.ago.iso8601(3).to_s, # String | A date used for selecting orders created before (or at) a specified time. Only orders placed before the specified time are returned. The date must be in ISO 8601 format.
+						# last_updated_after: 'last_updated_after_example', # String | A date used for selecting orders that were last updated after (or at) a specified time. An update is defined as any change in order status, including the creation of a new order. Includes updates made by Amazon and by the seller. The date must be in ISO 8601 format.
+						# last_updated_before: 'last_updated_before_example', # String | A date used for selecting orders that were last updated before (or at) a specified time. An update is defined as any change in order status, including the creation of a new order. Includes updates made by Amazon and by the seller. The date must be in ISO 8601 format.
+						# order_statuses: ['order_statuses_example'], # Array<String> | A list of `OrderStatus` values used to filter the results.  **Possible values:** - `PendingAvailability` (This status is available for pre-orders only. The order has been placed, payment has not been authorized, and the release date of the item is in the future.) - `Pending` (The order has been placed but payment has not been authorized.) - `Unshipped` (Payment has been authorized and the order is ready for shipment, but no items in the order have been shipped.) - `PartiallyShipped` (One or more, but not all, items in the order have been shipped.) - `Shipped` (All items in the order have been shipped.) - `InvoiceUnconfirmed` (All items in the order have been shipped. The seller has not yet given confirmation to Amazon that the invoice has been shipped to the buyer.) - `Canceled` (The order has been canceled.) - `Unfulfillable` (The order cannot be fulfilled. This state applies only to Multi-Channel Fulfillment orders.)
+						# fulfillment_channels: ['fulfillment_channels_example'], # Array<String> | A list that indicates how an order was fulfilled. Filters the results by fulfillment channel. Possible values: AFN (Fulfillment by Amazon); MFN (Fulfilled by the seller).
+						# payment_methods: ['payment_methods_example'], # Array<String> | A list of payment method values. Used to select orders paid using the specified payment methods. Possible values: COD (Cash on delivery); CVS (Convenience store payment); Other (Any payment method other than COD or CVS).
+						# buyer_email: 'buyer_email_example', # String | The email address of a buyer. Used to select orders that contain the specified email address.
+						# seller_order_id: 'seller_order_id_example', # String | An order identifier that is specified by the seller. Used to select only the orders that match the order identifier. If SellerOrderId is specified, then FulfillmentChannels, OrderStatuses, PaymentMethod, LastUpdatedAfter, LastUpdatedBefore, and BuyerEmail cannot be specified.
+						# max_results_per_page: 56, # Integer | A number that indicates the maximum number of orders that can be returned per page. Value must be 1 - 100. Default 100.
+						# easy_ship_shipment_statuses: ['easy_ship_shipment_statuses_example'], # Array<String> | A list of `EasyShipShipmentStatus` values. Used to select Easy Ship orders with statuses that match the specified values. If `EasyShipShipmentStatus` is specified, only Amazon Easy Ship orders are returned.  **Possible values:** - `PendingSchedule` (The package is awaiting the schedule for pick-up.) - `PendingPickUp` (Amazon has not yet picked up the package from the seller.) - `PendingDropOff` (The seller will deliver the package to the carrier.) - `LabelCanceled` (The seller canceled the pickup.) - `PickedUp` (Amazon has picked up the package from the seller.) - `DroppedOff` (The package is delivered to the carrier by the seller.) - `AtOriginFC` (The packaged is at the origin fulfillment center.) - `AtDestinationFC` (The package is at the destination fulfillment center.) - `Delivered` (The package has been delivered.) - `RejectedByBuyer` (The package has been rejected by the buyer.) - `Undeliverable` (The package cannot be delivered.) - `ReturningToSeller` (The package was not delivered and is being returned to the seller.) - `ReturnedToSeller` (The package was not delivered and was returned to the seller.) - `Lost` (The package is lost.) - `OutForDelivery` (The package is out for delivery.) - `Damaged` (The package was damaged by the carrier.)
+						# electronic_invoice_statuses: ['electronic_invoice_statuses_example'], # Array<String> | A list of `ElectronicInvoiceStatus` values. Used to select orders with electronic invoice statuses that match the specified values.  **Possible values:** - `NotRequired` (Electronic invoice submission is not required for this order.) - `NotFound` (The electronic invoice was not submitted for this order.) - `Processing` (The electronic invoice is being processed for this order.) - `Errored` (The last submitted electronic invoice was rejected for this order.) - `Accepted` (The last submitted electronic invoice was submitted and accepted.)
+						# next_token: 'next_token_example', # String | A string token returned in the response of your previous request.
+						# amazon_order_ids: ['amazon_order_ids_example'], # Array<String> | A list of AmazonOrderId values. An AmazonOrderId is an Amazon-defined order identifier, in 3-7-7 format.
+						# actual_fulfillment_supply_source_id: 'actual_fulfillment_supply_source_id_example', # String | Denotes the recommended sourceId where the order should be fulfilled from.
+						# is_ispu: true, # BOOLEAN | When true, this order is marked to be picked up from a store rather than delivered.
+						# store_chain_store_id: 'store_chain_store_id_example' # String | The store chain store identifier. Linked to a specific store in a store chain.
+						# "marketplaceIds" => marketplace_ids,
+						# marketplace_ids: [@marketplace_id],
+					}
+
+					if next_token.present?
+
+						opts[:next_token] = next_token
+
+					else
+
+						opts["marketplaceIds"] = marketplace_ids
+
+						if args[:created_after].present?
+							opts[:created_after] = args[:created_after].iso8601(3).to_s 
+							opts[:created_before] = 1.day.ago.iso8601(3).to_s
+						end
+
+						if args[:last_updated_after].present?
+							opts[:last_updated_after] = args[:last_updated_after].iso8601(3).to_s 
+							# opts[:last_updated_before] = 1.day.ago.iso8601(3).to_s
+						end
+
+					end
+
+					# puts JSON.pretty_generate(opts)
+					# result = orders_api.get_orders(marketplace_ids, opts)
+					result = order_api_call( :get_orders, [marketplace_ids, opts] )
+					# puts result.class.name
+					# puts result
+					# puts JSON.pretty_generate( JSON.parse(result.to_json))
+
+					next_token = result.payload[:NextToken]
+					puts "next_token #{next_token}"
+
+					orders = self.extract_orders( result )
+
+					# puts JSON.pretty_generate(orders)
+
+					orders.each do |order|
+						self.process_order( order, @data_src )
+					end
+
+					puts "Completed Page #{page}"
+
+					page = page + 1
+
+				rescue AmzSpApi::ApiError => e
+					puts "Exception when calling SP-API: #{e}"
 				end
 
-				puts "Completed Page #{page}"
-
-				page = page + 1
-
-				response = nil
-				if next_token.present?
-					puts "Loading Next Page #{page}"
-					response = self.order_api_list_orders_next( next_token )
-				end
-
+				break unless next_token.present?
 			end
-
 
 			puts "Finished"
 		end
 
 		def pull_order( order_id )
-			use_order_api
-
-			response = self.order_api_get_order( order_id )
+			# response = orders_api_get_order( order_id )
+			response = order_api_call( :get_order, [order_id] )
+			# response = orders_api.get_order( order_id )
 
 			return self.extract_orders( response ).first
 		end
@@ -392,16 +450,18 @@ module Aristotle
 
 		def extract_customer_from_src_order( amazon_order )
 
-			return nil unless amazon_order['BuyerEmail'].present?
+			buyer_info = amazon_order['BuyerInfo']
 
-			customer = Aristotle::Customer.where( email: amazon_order['BuyerEmail'] ).first
+			return nil unless buyer_info['BuyerEmail'].present?
+
+			customer = Aristotle::Customer.where( email: buyer_info['BuyerEmail'] ).first
 
 			customer ||= Aristotle::Customer.create(
 				data_src: @data_src,
-				src_customer_id: amazon_order['BuyerEmail'],
-				name: amazon_order['BuyerName'],
-				login: amazon_order['BuyerEmail'],
-				email: amazon_order['BuyerEmail'],
+				src_customer_id: buyer_info['BuyerEmail'],
+				name: buyer_info['BuyerName'],
+				login: buyer_info['BuyerEmail'],
+				email: buyer_info['BuyerEmail'],
 				src_created_at: amazon_order['PurchaseDate'],
 			)
 
@@ -480,21 +540,35 @@ module Aristotle
 
 		def extract_orders( order_response )
 
-			orders = []
-			orders = order_response.parse['Orders']['Order'] if order_response.parse['Orders']
+			orders = order_response.payload[:Orders].collect{|order| JSON.parse(order.to_json) }
 			orders = [orders] if orders.is_a? Hash
 
 			orders.each do |order|
 				puts "order['AmazonOrderId'] #{order['AmazonOrderId']} : #{order['OrderStatus']} : #{order['PurchaseDate']}"
-				order_item_response = self.order_api_list_order_items( order['AmazonOrderId'] )
 
-				order_items = order_item_response.parse['OrderItems']['OrderItem']
-				order_items = [order_items] if order_items.is_a? Hash
+				amz_order_id = order['AmazonOrderId']
 
-				order['OrderItems'] = order_items
+
+				# puts JSON.pretty_generate( JSON.parse(order.to_json))
+				amz_items = order_api_call( :get_order_items, [amz_order_id] ).payload[:OrderItems]
+				# amz_items = orders_api.get_order_items(amz_order_id)
+				# puts JSON.pretty_generate( JSON.parse(amz_items.to_json))
+				# Returns Empty orders_api.get_order_address(amz_order_id)
+				# Returns Empty orders_api.get_order_buyer_info(amz_order_id)
+				# Redundant... same info as get_orders orders_api.get_order(result_order[:AmazonOrderId]).payload
+
+				order['OrderItems'] = JSON.parse(amz_items.to_json)
+
+				# puts RestClient.get( result.url )
+
+				# order_items = order_item_response.parse['OrderItems']['OrderItem']
+				# order_items = [order_items] if order_items.is_a? Hash
+
+				# order['OrderItems'] = order_items
 
 				convert_amazon_order_currency( order, order['PurchaseDate'] ) if order['OrderTotal']
 
+				# puts JSON.pretty_generate(order)
 			end
 
 			orders
@@ -974,43 +1048,24 @@ module Aristotle
 			"refund:#{amazon_refund['RefundDate']}:#{amazon_refund['AmazonOrderId']}"
 		end
 
-		def order_api_get_order( order_id )
-			order_api_call( :get_order, [order_id] )
-		end
-
-		def order_api_list_orders( args = {} )
-			order_api_call( :list_orders, [@marketplace_id,args] )
-		end
-
-		def order_api_list_orders_next( next_token )
-			order_api_call( :list_orders_by_next_token, [next_token] )
-		end
-
-		def order_api_list_order_items( amazon_order_id )
-			order_api_call( :list_order_items, [amazon_order_id] )
+		def orders_api
+			@orders_api ||= AmzSpApi::OrdersApiModel::OrdersV0Api.new(@client)
 		end
 
 		def order_api_call( method, args )
-			api_call( @order_api, method, args )
+			api_call( orders_api, method, args )
 		end
 
-		def report_api_get_report( report_id )
-			report_api_call( :get_report, [report_id] )
-		end
-
-		def report_api_get_report_list( args = {} )
-			report_api_call( :get_report_list, [args] )
-		end
-
-		def report_api_get_report_list_by_next_token( next_token )
-			report_api_call( :get_report_list_by_next_token, [next_token] )
+		def reports_api
+			@reports_api ||= AmzSpApi::ReportsApiModel::ReportsApi.new(AmzSpApi::SpApiClient.new)
 		end
 
 		def report_api_call( method, args )
-			api_call( @report_api, method, args )
+			api_call( reports_api, method, args )
 		end
 
 		def api_call( api, method, args )
+			puts "api_call #{api.class.name} #{method.to_s} #{args.to_json}"
 			timeout_count = 0
 			response = nil
 
@@ -1022,7 +1077,9 @@ module Aristotle
 					# 10 seconds.
 					sleep REQUEST_COOLDOWN_SECONDS
 					return response
-				rescue Peddler::Errors::RequestThrottled => e
+				rescue AmzSpApi::ApiError => e
+					puts e.to_json
+					die()
 					timeout_count = timeout_count + 1
 					raise e if timeout_count >= MAX_REQUEST_RETRIES
 					puts "AmazonEtl api #{method} Cooling down api"
