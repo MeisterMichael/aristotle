@@ -198,7 +198,7 @@ module Aristotle
 			refund_errors = []
 			last_settlement_report_at = nil
 
-			created_since = args[:created_after] || DateTime.parse(2.weeks.ago.to_s)
+			created_since = DateTime.parse((args[:created_after] || 2.weeks.ago).to_s)
 			created_until = DateTime.parse(Time.now.to_s)
 
 			begin
@@ -208,22 +208,36 @@ module Aristotle
 
 				loop do
 					report_options = { 
-						report_types: ['GET_V2_SETTLEMENT_REPORT_DATA_XML'], # Array<String> | A list of report types used to filter reports. When reportTypes is provided, the other filter parameters (processingStatuses, marketplaceIds, createdSince, createdUntil) and pageSize may also be provided. Either reportTypes or nextToken is required.
+						# report_types: ['GET_V2_SETTLEMENT_REPORT_DATA_XML'], # Array<String> | A list of report types used to filter reports. When reportTypes is provided, the other filter parameters (processingStatuses, marketplaceIds, createdSince, createdUntil) and pageSize may also be provided. Either reportTypes or nextToken is required.
 						# processing_statuses: ['processing_statuses_example'], # Array<String> | A list of processing statuses used to filter reports.
-						marketplace_ids: [@marketplace_id], # Array<String> | A list of marketplace identifiers used to filter reports. The reports returned will match at least one of the marketplaces that you specify.
-						page_size: 10, # Integer | The maximum number of reports to return in a single call.
-						created_since: created_since, # DateTime | The earliest report creation date and time for reports to include in the response, in ISO 8601 date time format. The default is 90 days ago. Reports are retained for a maximum of 90 days.
-						created_until: created_until, # DateTime | The latest report creation date and time for reports to include in the response, in ISO 8601 date time format. The default is now.
+						# marketplace_ids: [@marketplace_id], # Array<String> | A list of marketplace identifiers used to filter reports. The reports returned will match at least one of the marketplaces that you specify.
+						# page_size: 10, # Integer | The maximum number of reports to return in a single call.
+						# created_since: created_since, # DateTime | The earliest report creation date and time for reports to include in the response, in ISO 8601 date time format. The default is 90 days ago. Reports are retained for a maximum of 90 days.
+						# created_until: created_until, # DateTime | The latest report creation date and time for reports to include in the response, in ISO 8601 date time format. The default is now.
 						# next_token: 'next_token_example' # String | A string token returned in the response to your previous request. nextToken is returned when the number of results exceeds the specified pageSize value. To get the next page of results, call the getReports operation and include this token as the only parameter. Specifying nextToken with any other parameters will cause the request to fail.
 					}
-					report_options[:next_token] = next_token if next_token.present?
+					if next_token.present?
+						report_options = {
+							next_token: next_token, # String | A string token returned in the response to your previous request. nextToken is returned when the number of results exceeds the specified pageSize value. To get the next page of results, call the getReports operation and include this token as the only parameter. Specifying nextToken with any other parameters will cause the request to fail.
+						}
+					else
+						report_options = { 
+							report_types: ['GET_V2_SETTLEMENT_REPORT_DATA_XML'], # Array<String> | A list of report types used to filter reports. When reportTypes is provided, the other filter parameters (processingStatuses, marketplaceIds, createdSince, createdUntil) and pageSize may also be provided. Either reportTypes or nextToken is required.
+							marketplace_ids: [@marketplace_id], # Array<String> | A list of marketplace identifiers used to filter reports. The reports returned will match at least one of the marketplaces that you specify.
+							page_size: 10, # Integer | The maximum number of reports to return in a single call.
+							created_since: created_since, # DateTime | The earliest report creation date and time for reports to include in the response, in ISO 8601 date time format. The default is 90 days ago. Reports are retained for a maximum of 90 days.
+							created_until: created_until, # DateTime | The latest report creation date and time for reports to include in the response, in ISO 8601 date time format. The default is now.
+						}
+					end
+					
 
-					response = reports_api.get_reports(report_options)
+					# response = reports_api.get_reports(report_options)
+					response = report_api_call( :get_reports, [report_options] )
 
 					next_token = response.next_token
 
-					puts "get_reports"
-					puts JSON.pretty_generate( JSON.parse(response.to_json))
+					# puts "get_reports"
+					# puts JSON.pretty_generate( JSON.parse(response.to_json))
 					
 					response.reports.each do |report|
 						report_id = report[:reportId]
@@ -231,7 +245,8 @@ module Aristotle
 						
 						# puts JSON.pretty_generate( JSON.parse(report.to_json))
 						
-						report_document_reference = reports_api.get_report_document(report[:reportDocumentId])
+						# report_document_reference = reports_api.get_report_document(report[:reportDocumentId])
+						report_document_reference = report_api_call( :get_report_document, [report[:reportDocumentId]] )
 						
 						# puts JSON.pretty_generate( JSON.parse(report_document_reference.to_json))
 
@@ -250,7 +265,11 @@ module Aristotle
 						puts "  -> Processing #{new_refunds.count} refunds"
 						new_refunds.each do |refund|
 							begin
-								self.process_refund( refund, @data_src )
+								refund_transaction_items = self.process_refund( refund, @data_src )
+								#puts "new_refunds refund['AmazonOrderId'] #{refund['AmazonOrderId']}"
+								#puts JSON.pretty_generate(refund)
+								#puts JSON.pretty_generate(refund_transaction_items.collect(&:attributes)) if refund_transaction_items.present?
+								#die() if refund['AmazonOrderId'] == '114-1101558-0389848'
 							rescue Exception => e
 								puts "    -> Exception #{e.message} #{refund.to_json}"
 								refund_errors << { exception: e, data: refund }
@@ -536,7 +555,11 @@ module Aristotle
 
 		def extract_order_from_src_refund( amazon_refund )
 			order = Order.where( data_src: @data_src, src_order_id: amazon_refund['AmazonOrderId'] ).first
-
+			# puts "extract_order_from_src_refund"
+			# puts @data_src
+			# puts amazon_refund['AmazonOrderId']
+			# puts JSON.pretty_generate(amazon_refund)
+			# puts ( order.try(:attributes) ).try(:to_json)
 			order
 		end
 
@@ -592,6 +615,7 @@ module Aristotle
 			# ["SettlementData","Order","Refund","OtherTransaction","SellerCouponPayment"]
 
 			order_settlements = settlements['AmazonEnvelope']['Message']['SettlementReport']['Order']
+			order_settlements = [order_settlements].select(&:present?) unless order_settlements.is_a? Array
 			order_settlements ||= []
 			# puts "JSON.pretty_generate(order_settlements)"
 			# puts JSON.pretty_generate(order_settlements)
@@ -599,6 +623,8 @@ module Aristotle
 			order_udpates = {}
 
 			order_settlements.each do |order_settlement|
+				# puts JSON.pretty_generate(order_settlement)
+
 				amazon_order_id = order_settlement['AmazonOrderID']
 
 				order_udpates[amazon_order_id] ||= { src_transaction_id: amazon_order_id }
@@ -627,13 +653,16 @@ module Aristotle
 
 							fees.each do |fee|
 								if fee['Type'] == 'Commission'
-									commission += fee['Amount'].to_f
+									# puts JSON.pretty_generate(fee)
+									commission += -(fee['Amount'].to_f * 100).to_i
+									# puts "commission #{amazon_order_id} #{commission}"
 								end
 							end
 						end
 					end
 
 					order_udpates[amazon_order_id][:commission] = commission
+					# puts order_udpates[amazon_order_id].to_json
 
 				end
 			end
@@ -680,6 +709,11 @@ module Aristotle
 				amazon_order_id = nil
 
 				refund_total = 0.00
+				refund_total = 0.00
+				refund_shipping = 0.00
+				refund_tax = 0.00
+				refund_discount = 0.00
+				refund_commission = 0.00
 				currency = @default_currency #refund_settlements.first['currency']
 
 				if refund_settlements.first['MarketplaceName'].present?
@@ -691,6 +725,7 @@ module Aristotle
 
 
 				refund_settlements.each do |refund_settlement|
+					# puts "JSON.pretty_generate(refund_settlement) #{refund_settlement['AmazonOrderID']}"
 					# puts JSON.pretty_generate(refund_settlement)
 
 					amazon_order_id = refund_settlement['AmazonOrderID']
@@ -710,14 +745,18 @@ module Aristotle
 
 
 						adjustments = []
+						commission_adjustments = []
 
 						item_price_components = adjusted_item.dig('ItemPriceAdjustments','Component')
 						item_price_components = [item_price_components].select(&:present?) unless item_price_components.is_a? Array
-
-						# puts "JSON.pretty_generate(item_price_components)"
-						# puts JSON.pretty_generate(item_price_components)
 						item_price_components.each do |adjustment|
 							adjustments << { adjustment_type: "ItemPrice#{adjustment['Type']}", adjustment: adjustment  }
+						end
+
+						fee_components = adjusted_item.dig('ItemFeeAdjustments','Fee')
+						fee_components = [fee_components].select(&:present?) unless fee_components.is_a? Array
+						fee_components.each do |adjustment|
+							adjustments << { adjustment_type: "Fee#{adjustment['Type']}", adjustment: adjustment  }
 						end
 
 						# puts "JSON.pretty_generate(adjustments)"
@@ -731,11 +770,35 @@ module Aristotle
 
 						adjustments = adjustments.select{|adjustment_row| adjustment_row[:adjustment].present? }
 
-						adjustment_types = [ 'ItemPricePrincipal', 'ItemPriceShipping', 'ItemPriceTax' ]
-						adjustments = adjustments.select{ |adjustment_row| adjustment_types.include?(adjustment_row[:adjustment_type]) }
+						total_adjustment_types = [ 'ItemPricePrincipal', 'ItemPriceShipping', 'PromotionShipping', 'ItemPriceTax', 'ShippingTax', 'PromotionTax', 'PromotionPrincipal' ]
+						total_adjustments = adjustments.select{ |adjustment_row| total_adjustment_types.include?(adjustment_row[:adjustment_type]) }
 
-						amount			= adjustments.sum{|adjustment_row| adjustment_row[:adjustment]['Amount'].to_f }
-						refund_total	= refund_total + amount
+						shipping_adjustment_types = [ 'ItemPriceShipping', 'PromotionShipping' ]
+						shipping_adjustments = adjustments.select{ |adjustment_row| shipping_adjustment_types.include?(adjustment_row[:adjustment_type]) }
+
+						tax_adjustment_types = [ 'ItemPriceTax', 'ShippingTax', 'PromotionTax' ]
+						tax_adjustments = adjustments.select{ |adjustment_row| tax_adjustment_types.include?(adjustment_row[:adjustment_type]) }
+
+						discount_adjustment_types = [ 'PromotionPrincipal' ]
+						discount_adjustments = adjustments.select{ |adjustment_row| discount_adjustment_types.include?(adjustment_row[:adjustment_type]) }
+
+						commission_adjustment_types = [ 'FeeCommission' ]
+						commission_adjustments = adjustments.select{ |adjustment_row| commission_adjustment_types.include?(adjustment_row[:adjustment_type]) }
+
+
+						this_refund_total		= total_adjustments.sum{|adjustment_row| adjustment_row[:adjustment]['Amount'].to_f }
+						this_refund_shipping	= shipping_adjustments.sum{|adjustment_row| adjustment_row[:adjustment]['Amount'].to_f }
+						this_refund_tax			= tax_adjustments.sum{|adjustment_row| adjustment_row[:adjustment]['Amount'].to_f }
+						this_refund_discount	= discount_adjustments.sum{|adjustment_row| adjustment_row[:adjustment]['Amount'].to_f }
+						this_refund_commission	= commission_adjustments.sum{|adjustment_row| adjustment_row[:adjustment]['Amount'].to_f }
+						this_refund_price		= this_refund_total + this_refund_discount - this_refund_tax - this_refund_shipping
+
+						refund_total		= refund_total + this_refund_total
+						refund_shipping		= refund_shipping + this_refund_shipping
+						refund_tax			= refund_tax + this_refund_tax
+						refund_discount		= refund_discount + this_refund_discount
+						refund_commission	= refund_commission + this_refund_commission
+						 
 
 						# puts "refund_settlement " + [order_item_code, amount, seller_sku, refund_total].to_json
 
@@ -745,8 +808,28 @@ module Aristotle
 							order_item ||= {
 								"OrderItemId" => order_item_code,
 								'SellerSKU' => seller_sku,
+								'ItemPrice' => {
+									'Amount' => this_refund_price,
+									'CurrencyCode' => currency,
+								},
 								'ItemTotal' => {
-									'Amount' => 0.0,
+									'Amount' => this_refund_total,
+									'CurrencyCode' => currency,
+								},
+								'PromotionDiscount' => {
+									'Amount' => this_refund_discount,
+									'CurrencyCode' => currency,
+								},
+								'ShippingPrice' => {
+									'Amount' => this_refund_shipping,
+									'CurrencyCode' => currency,
+								},
+								'ItemTax' => {
+									'Amount' => this_refund_tax,
+									'CurrencyCode' => currency,
+								},
+								'ItemCommission' => {
+									'Amount' => this_refund_commission,
 									'CurrencyCode' => currency,
 								},
 								# 'Adjustments' => [],
@@ -762,8 +845,6 @@ module Aristotle
 							# 	order_item[amount_key] ||= { "CurrencyCode" => currency, "Amount" => 0.00 }
 							# 	order_item[amount_key]['Amount'] = order_item[amount_key]['Amount'] + amount
 							# end
-
-							order_item['ItemTotal']['Amount'] = order_item['ItemTotal']['Amount'] + amount
 
 							# if refund_settlement['amount-type'] == 'Promotion'
 							# 	order_item['PromotionIds'] ||= []
@@ -904,6 +985,10 @@ module Aristotle
 				item_discounts = 0
 				item_discounts = (amazon_order_item['PromotionDiscount']['Amount'].to_f * 100).to_i if amazon_order_item['PromotionDiscount'].present?
 
+				item_shipping = 0
+				item_shipping = (amazon_order_item['ShippingPrice']['Amount'].to_f * 100).to_i if amazon_order_item['ShippingPrice'].present?
+
+
 				amount = 0
 				if amazon_order_item['ItemPrice'].present?
 
@@ -921,12 +1006,14 @@ module Aristotle
 				# distributed values
 				distributed_discounts = EcomEtl.distribute_quantities( item_discounts , quantity )
 				distributed_taxes = EcomEtl.distribute_quantities( item_taxes, quantity )
+				distributed_shipping = EcomEtl.distribute_quantities( item_shipping, quantity )
 
 
 
 				(0..quantity-1).each do |i|
 					discount 	= distributed_discounts[i]
 					tax 		= distributed_taxes[i]
+					shipping 	= distributed_shipping[i]
 
 
 					transaction_item_attributes = {
@@ -943,11 +1030,11 @@ module Aristotle
 						coupon_discount: 0,
 						total_discount: discount,
 						sub_total: amount - discount,
-						shipping: 0,
+						shipping: shipping,
 						shipping_tax: 0,
 						tax: tax,
 						adjustment: 0,
-						total: amount - discount + tax,
+						total: amount - discount + tax + shipping,
 						currency: currency,
 						exchange_rate: exchange_rate,
 					}
@@ -987,8 +1074,10 @@ module Aristotle
 
 			line_items = []
 
-			amazon_refund['OrderItems'].each do |amazon_refund_order_item|
+			# puts "extract_line_items_from_src_refund #{amazon_refund['AmazonOrderId']}"
 
+			amazon_refund['OrderItems'].each do |amazon_refund_order_item|
+				# puts "amazon_refund_order_item #{amazon_refund_order_item.to_json}"
 				line_item_id 	= amazon_refund_order_item['OrderItemId']
 
 				transaction_items = order_transaction_items.select{ |item| item.src_line_item_id == line_item_id }
@@ -1019,16 +1108,30 @@ module Aristotle
 
 				line_item[:total_discount] 	= EcomEtl.sum_key_values( line_item, EcomEtl.AGGREGATE_TOTAL_DISCOUNT_NUMERIC_ATTRIBUTES )
 				line_item[:sub_total] 		= EcomEtl.sum_key_values( line_item, EcomEtl.AGGREGATE_SUB_TOTAL_NUMERIC_ATTRIBUTES )
-				line_item[:total] 			= EcomEtl.sum_key_values( line_item, EcomEtl.AGGREGATE_TOTAL_NUMERIC_ATTRIBUTES )
+
+				if amazon_refund_order_item['ItemPrice'].blank? && amazon_refund_order_item['ItemTotal'].present?
+					line_item[:total] 			= ( amazon_refund_order_item['ItemTotal']['Amount'].to_f * 100 ).to_i
+					line_item[:amount]			= line_item[:total] + line_item[:total_discount].to_i - line_item[:tax].to_i
+					line_item[:sub_total] 		= EcomEtl.sum_key_values( line_item, EcomEtl.AGGREGATE_SUB_TOTAL_NUMERIC_ATTRIBUTES )
+				else
+					line_item[:total] 			= EcomEtl.sum_key_values( line_item, EcomEtl.AGGREGATE_TOTAL_NUMERIC_ATTRIBUTES )
+				end
+
+				# puts "line_item #{line_item.to_json}"
 
 				line_items << line_item
 			end
+
+			# puts "line_items #{line_items.to_json}"
 
 			line_items
 		end
 
 		def extract_total_from_src_refund( amazon_refund )
-			( amazon_refund['OrderTotal']['Amount'].to_f * 100 ).to_i
+			extracted_total = ( amazon_refund['OrderTotal']['Amount'].to_f * 100 ).to_i
+			# puts "extracted_total #{extracted_total}"
+			# puts amazon_refund.to_json
+			extracted_total
 		end
 
 		def extract_aggregate_adjustments_from_src_refund( amazon_refund )
@@ -1080,10 +1183,15 @@ module Aristotle
 					sleep REQUEST_COOLDOWN_SECONDS
 					return response
 				rescue AmzSpApi::ApiError => e
-					puts e.to_json
-					die()
 					timeout_count = timeout_count + 1
-					raise e if timeout_count >= MAX_REQUEST_RETRIES
+					if timeout_count >= MAX_REQUEST_RETRIES
+						puts "api_call MAX RETRY EXCEEDED #{timeout_count}: #{api.class.name} #{method.to_s} #{args.to_json}"
+						puts e.to_json
+						raise e
+					else
+						puts "api_call RETRY #{timeout_count}: #{api.class.name} #{method.to_s} #{args.to_json}"
+						puts e.to_json
+					end
 					puts "AmazonEtl api #{method} Cooling down api"
 					sleep 10*timeout_count # need to cool down api
 				rescue Excon::Error::ServiceUnavailable => e
