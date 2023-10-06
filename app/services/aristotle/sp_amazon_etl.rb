@@ -1,3 +1,6 @@
+# https://github.com/ericcj/amz_sp_api/tree/main/lib/reports-api-model
+# https://github.com/ericcj/amz_sp_api/tree/main/lib/orders-api-model
+
 require 'reports-api-model'
 require 'orders-api-model'
 require 'tokens-api-model'
@@ -69,8 +72,8 @@ module Aristotle
 		}
 
 		MARKETPLACE_COUNTRY_HOST_GROUP = {
-			'US' => 'US',
-			'CA' => 'US',
+			'US' => 'NA',
+			'CA' => 'NA',
 			'ES' => 'EU',
 			'GB' => 'EU',
 			'FR' => 'EU',
@@ -139,15 +142,14 @@ module Aristotle
 			end
 
 			# @marketplace_host = MARKETPLACE_COUNTRY_HOSTS[@marketplace_country] || 'mws.amazonservices.com'
-			# marketplace_host_group = MARKETPLACE_COUNTRY_HOST_GROUP[@marketplace_country]
+			marketplace_host_group = MARKETPLACE_COUNTRY_HOST_GROUP[@marketplace_country]
 
-			@credentials[:refresh_token]			||= ENV['AWS_MX_CA_US_REFERSH_TOKEN']
-			@credentials[:client_id]				||= ENV['AWS_SP_API_LWA_CLIENT_ID']
-			@credentials[:client_secret]			||= ENV['AWS_SP_API_LWA_CLIENT_SECRET']
-			# @credentials[:merchant_id]				||= ENV["MWS_#{marketplace_host_group}_MERCHANT_ID"] || ENV['MWS_MERCHANT_ID']
-			@credentials[:aws_access_key_id]		||= ENV['AWS_SP_API_NHC_ANALYTICS_ACCESS_KEY_ID']
-			@credentials[:aws_secret_access_key]	||= ENV['AWS_SP_API_NHC_ANALYTICS_SECRET_ACCESS_KEY_ID']
-			@credentials[:region]					||= 'na' # 'eu'
+			@credentials[:refresh_token]			||= ENV["AWS_#{marketplace_host_group}_SP_REFERSH_TOKEN"]
+			@credentials[:client_id]				||= ENV["AWS_#{marketplace_host_group}_SP_API_LWA_CLIENT_ID"] || ENV["AWS_SP_API_LWA_CLIENT_ID"]
+			@credentials[:client_secret]			||= ENV["AWS_#{marketplace_host_group}_SP_API_LWA_CLIENT_SECRET"] || ENV["AWS_SP_API_LWA_CLIENT_SECRET"]
+			@credentials[:aws_access_key_id]		||= ENV["AWS_#{marketplace_host_group}_SP_API_NHC_ANALYTICS_ACCESS_KEY_ID"] || ENV["AWS_SP_API_NHC_ANALYTICS_ACCESS_KEY_ID"]
+			@credentials[:aws_secret_access_key]	||= ENV["AWS_#{marketplace_host_group}_SP_API_NHC_ANALYTICS_SECRET_ACCESS_KEY_ID"] || ENV["AWS_SP_API_NHC_ANALYTICS_SECRET_ACCESS_KEY_ID"]
+			@credentials[:region]					||= ENV["AWS_#{marketplace_host_group}_SP_REGION"] || marketplace_host_group.downcase #'na' # 'eu'
 
 
 			# @credentials[:marketplace] = Peddler::Marketplace.new( @marketplace_id, @marketplace_country, @marketplace_host )
