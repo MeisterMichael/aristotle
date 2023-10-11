@@ -71,19 +71,25 @@ module Aristotle
 			'AU' => 'mws.amazonservices.com.au',
 		}
 
+		DEFAULT_MARKETPLACE_COUNTRY_HOST_GROUP = 'EU'
+
 		MARKETPLACE_COUNTRY_HOST_GROUP = {
-			'US' => 'NA',
 			'CA' => 'NA',
-			'ES' => 'EU',
-			'GB' => 'EU',
-			'FR' => 'EU',
+			'BR' => 'NA',
+			'MX' => 'NA',
+			'US' => 'NA',
+
 			'DE' => 'EU',
+			'ES' => 'EU',
+			'FR' => 'EU',
+			'GB' => 'EU',
+			'IN' => 'EU',
 			'IT' => 'EU',
-			'BR' => 'BR',
-			'IN' => 'IN',
-			'CN' => 'CN',
-			'JP' => 'JP',
-			'AU' => 'AU',
+			
+			# 'CN' => 'CN',?
+			'AU' => 'FE',
+			'JP' => 'FE',
+			'SG' => 'FE',
 		}
 
 		MARKETPLACE_CURRENCIES = {
@@ -142,13 +148,14 @@ module Aristotle
 			end
 
 			# @marketplace_host = MARKETPLACE_COUNTRY_HOSTS[@marketplace_country] || 'mws.amazonservices.com'
-			marketplace_host_group = MARKETPLACE_COUNTRY_HOST_GROUP[@marketplace_country]
+			marketplace_host_group = MARKETPLACE_COUNTRY_HOST_GROUP[@marketplace_country] || DEFAULT_MARKETPLACE_COUNTRY_HOST_GROUP
 
 			@credentials[:refresh_token]			||= ENV["AWS_#{marketplace_host_group}_SP_REFERSH_TOKEN"]
 			@credentials[:client_id]				||= ENV["AWS_#{marketplace_host_group}_SP_API_LWA_CLIENT_ID"] || ENV["AWS_SP_API_LWA_CLIENT_ID"]
 			@credentials[:client_secret]			||= ENV["AWS_#{marketplace_host_group}_SP_API_LWA_CLIENT_SECRET"] || ENV["AWS_SP_API_LWA_CLIENT_SECRET"]
 			@credentials[:aws_access_key_id]		||= ENV["AWS_#{marketplace_host_group}_SP_API_NHC_ANALYTICS_ACCESS_KEY_ID"] || ENV["AWS_SP_API_NHC_ANALYTICS_ACCESS_KEY_ID"]
-			@credentials[:aws_secret_access_key]	||= ENV["AWS_#{marketplace_host_group}_SP_API_NHC_ANALYTICS_SECRET_ACCESS_KEY_ID"] || ENV["AWS_SP_API_NHC_ANALYTICS_SECRET_ACCESS_KEY_ID"]
+			@credentials[:aws_secret_access_key]	||= ENV["AWS_#{marketplace_host_group}_SP_API_NHC_ANALYTICS_SECRET_ACCESS_KEY_ID"] || 
+
 			@credentials[:region]					||= ENV["AWS_#{marketplace_host_group}_SP_REGION"] || marketplace_host_group.downcase #'na' # 'eu'
 
 
