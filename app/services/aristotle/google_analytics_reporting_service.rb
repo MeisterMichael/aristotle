@@ -263,7 +263,7 @@ module Aristotle
 				# response = nil
 			end
 
-			puts JSON.pretty_generate(marketing_report_rows)
+			# puts JSON.pretty_generate(marketing_report_rows)
 
 			marketing_report_rows
 
