@@ -33,54 +33,50 @@ module Aristotle
 		def initialize( args = {} )
 			@data_src = 'GoogleAnalytics'
 
-			@default_view_id = ENV["GOOGLE_ANALYTICS_DEFAULT_VIEW_ID"]
+			@default_property_id = args[:property_id] || "289830195"
+			
 
-			client_id		= args[:app_client_id] || ENV['GOOGLE_ANALYTICS_APP_CLIENT_ID']
-			client_secret	= args[:app_client_secret] || ENV['GOOGLE_ANALYTICS_APP_CLIENT_SECRET']
+			@client = Google::Analytics::Data.analytics_data do |config|
 
-			if args[:oauth2_token].present?
+				if args[:credentials].present?
+					config.credentials = args[:credentials]
+				else
+					config.credentials = JSON.parse( ENV['GOOGLE_ANALYTICS_DATA_ACCOUNT'] )
+				end
 
-				oauth2_token = args[:oauth2_token]
-
-			elsif ENV['GOOGLE_ANALYTICS_OAUTH2_TOKEN_ACCESS_TOKEN'].present?
-
-				oauth2_token = {
-					access_token: ENV['GOOGLE_ANALYTICS_OAUTH2_TOKEN_ACCESS_TOKEN'],
-					refresh_token: ENV['GOOGLE_ANALYTICS_OAUTH2_TOKEN_REFRESH_TOKEN'],
-					expires_in: ENV['GOOGLE_ANALYTICS_OAUTH2_TOKEN_EXPIRES_IN'],
-					token_type: ENV['GOOGLE_ANALYTICS_OAUTH2_TOKEN_TOKEN_TYPE'],
-				}
-
-			else
-
-				oauth2_token = {}
+				# config.credentials = "account.json"
+				# config.credentials = {
+				# 	"type": "****",
+				# 	"project_id": "****",
+				# 	"private_key_id": "****",
+				# 	"private_key": "****",
+				# 	"client_email": "****",
+				# 	"client_id": "****",
+				# 	"auth_uri": "****",
+				# 	"token_uri": "****",
+				# 	"auth_provider_x509_cert_url": "****",
+				# 	"client_x509_cert_url": "****",
+				# 	"universe_domain": "****""
+				# }
 
 			end
 
-			authorization_args = oauth2_token.merge(
-				token_credential_uri: TOKEN_CREDENTIAL_URL,
-				client_id: client_id,
-				client_secret: client_secret
-			)
-
-			@client = Analyticsreporting::AnalyticsReportingService.new
-			@client.authorization = Signet::OAuth2::Client.new( authorization_args )
-			@client.authorization.fetch_access_token!
 
 		end
 
 		def pull_marketing_data( args={} )
-			view_id = args[:view_id] || @default_view_id
 
-			marketing_report = extract_last_attribution_marketing_report( args.merge( view_id: view_id ) )
+			property_id = args[:property_id] || @default_property_id
+			
+			marketing_report = extract_last_attribution_marketing_report( args.merge( property_id: property_id ) )
 			marketing_report.each do |marketing_report_row|
 
 				where_attributes = marketing_report_row[:dimensions].merge(
 					data_src: @data_src,
 					purpose: MarketingSpend.purposes['research'],
 					research_type: 'last_attribution',
-					src_account_id: view_id,
-					src_account_name: view_id,
+					src_account_id: property_id,
+					src_account_name: property_id,
 				)
 
 				marketing_spend = MarketingSpend.where( where_attributes ).first_or_initialize
@@ -88,23 +84,6 @@ module Aristotle
 				puts marketing_spend.errors.full_messages unless marketing_spend.save
 
 			end
-
-			# marketing_report = extract_sessions_marketing_report( args.merge( view_id: view_id ) )
-			# marketing_report.each do |marketing_report_row|
-			#
-			# 	where_attributes = marketing_report_row[:dimensions].merge(
-			# 		data_src: @data_src,
-			# 		purpose: 'research',
-			# 		research_type: 'sessions'
-			# 	)
-			#
-			# 	marketing_spend = MarketingSpend.where( where_attributes ).first_or_initialize
-			# 	marketing_spend.attributes			= marketing_report_row[:metrics]
-			# 	marketing_spend.src_account_id		= view_id
-			# 	marketing_spend.src_account_name	= view_id
-			# 	marketing_spend.save
-			#
-			# end
 
 			return true
 
@@ -147,217 +126,77 @@ module Aristotle
 		# returns an array of marketing attributes, filtered by arguments, and
 		# broken out into dimensions and metrics.
 		def extract_last_attribution_marketing_report( args = {} )
-			view_id		= args[:view_id]
+			property_id	= args[:property_id]
 
 			end_at 		= args[:end_at] || Time.now
 			start_at 	= args[:start_at] || (2.week.ago + 1.day)
 
-			start_at 	= start_at.strftime('%Y-%m-%d') unless start_at.is_a? String
-			end_at 		= end_at.strftime('%Y-%m-%d') unless end_at.is_a? String
+			limit = 1000
+			offset = 0
+			max_rows = 0
 
-			# queries session with at least one transaction.  Which would be the last
-			# one before a sale, thus giving us the last attribution.
-			report_request_data = {
-				"dimensions" => [
-					{
-						"name" => "ga:segment"
-					},
-					{
-						"name" => "ga:date"
-					},
-					{
-						"name" => "ga:medium"
-					},
-					{
-						"name" => "ga:campaign"
-					},
-					{
-						"name" => "ga:adContent"
-					},
-					{
-						"name" => "ga:source"
-					},
-					{
-						"name" => "ga:keyword"
-					},
-				],
-				"viewId" => view_id,
-				"metrics" => [
-					{
-						"expression" => "ga:uniquePurchases",
-						"formattingType" => "INTEGER"
-					},
-					{
-						"expression" => "ga:sessions",
-						"formattingType" => "INTEGER"
-					},
-					{
-						"expression" => "ga:totalValue",
-						"formattingType" => "FLOAT"
-					}
-				],
-				"segments" => [
-					{
-						"dynamicSegment" => {
-							"sessionSegment" => {
-								"segmentFilters" => [
-									{
-										"simpleSegment" => {
-											"orFiltersForSegment" => [
-												{
-													"segmentFilterClauses" => [
-														{
-															"metricFilter" => {
-																"comparisonValue" => "0",
-																"operator" => "GREATER_THAN",
-																"metricName" => "ga:uniquePurchases"
-															}
-														}
-													]
-												}
-											]
-										}
-									}
-								]
-							},
-							"name" => "Sessions	with Purchases"
-						}
-					}
-				],
-				"dateRanges" => [
-					{
-						"startDate" => start_at,
-						"endDate" => end_at
-					}
-				]
-			}
+			metric_fields = [
+				Google::Analytics::Data::V1beta::Metric.new(name: 'ecommercePurchases'), # transactions, ecommercePurchases | "ga:uniquePurchases"),
+				Google::Analytics::Data::V1beta::Metric.new(name: 'sessions'), # "ga:sessions"),
+				Google::Analytics::Data::V1beta::Metric.new(name: 'totalRevenue'), # "ga:totalValue"),
+			]
 
-			report_request = build_report_request( report_request_data )
+			dimension_fields = [
+				Google::Analytics::Data::V1beta::Dimension.new(name: "date"), # date
+				Google::Analytics::Data::V1beta::Dimension.new(name: "sessionMedium"), # medium | medium
+				Google::Analytics::Data::V1beta::Dimension.new(name: "sessionCampaignName"), # campaignName | campaign
+				Google::Analytics::Data::V1beta::Dimension.new(name: "sessionManualAdContent"), # manualAdContent | adContent
+				Google::Analytics::Data::V1beta::Dimension.new(name: "sessionSource"), # source | source
+				Google::Analytics::Data::V1beta::Dimension.new(name: "sessionGoogleAdsKeyword"), # googleAdsKeyword | keyword
+			]
 
-			report = get_report( report_request )
+
+			date_ranges = [Google::Analytics::Data::V1beta::DateRange.new(start_date: start_at.to_date.to_s, end_date: end_at.to_date.to_s)]
+
+			metric_filter = Google::Analytics::Data::V1beta::FilterExpression.new(
+				filter: Google::Analytics::Data::V1beta::Filter.new(
+					field_name: 'ecommercePurchases',
+					numeric_filter: Google::Analytics::Data::V1beta::Filter::NumericFilter.new(
+						value: Google::Analytics::Data::V1beta::NumericValue.new( int64_value: 0 ),
+						operation: Google::Analytics::Data::V1beta::Filter::NumericFilter::Operation::GREATER_THAN,
+					),
+				),
+			)
+
+			order_dim = Google::Analytics::Data::V1beta::OrderBy::DimensionOrderBy.new(dimension_name: "ecommercePurchases")
+			orderby = Google::Analytics::Data::V1beta::OrderBy.new(desc: true, dimension: order_dim)
+
+			puts "start_date: #{start_at.to_date.to_s}, end_date: #{end_at.to_date.to_s}, limit: #{limit}, offset: #{offset}"
+			request = Google::Analytics::Data::V1beta::RunReportRequest.new(
+				property: "properties/#{property_id}",
+				metrics: metric_fields,
+				dimensions: dimension_fields,
+				date_ranges: date_ranges,
+				metric_filter: metric_filter,
+				order_bys: [orderby],
+				limit: limit,
+				offset: offset,
+			)
+			response = @client.run_report request
+			# puts JSON.pretty_generate response.to_h
+			# puts "#{(response.try(:rows) || []).count} / #{response.row_count}"
+
+			max_rows = response.row_count
 
 			marketing_report_rows = []
 
-			while( report.present? && report.data.present? && report.data.rows.present? )
+			while( response.present? && response.rows.present? )
+				puts "start_date: #{start_at.to_date.to_s}, end_date: #{end_at.to_date.to_s}, limit: #{limit}, offset: #{offset}, max_rows: #{max_rows}"
+				
+				offset = offset + response.rows.count
 
-				report.data.rows.each do |row|
-
-
-					metric_values = row.metrics.first.values
-					dimension_values = row.dimensions
-
-					dimension_values.each_with_index do |value,index|
-						dimension_values[index] = nil if ['(not set)','(none)', '(not provided)'].include? value
-					end
-
-					# dimensions
-					dimensions = {
-						'ga:segment' 	=> dimension_values[0],
-						'ga:date' 		=> dimension_values[1],
-						'ga:medium' 	=> dimension_values[2],
-						'ga:campaign' 	=> dimension_values[3],
-						'ga:adContent'	=> dimension_values[4],
-						'ga:source'		=> dimension_values[5],
-						'ga:keyword'	=> dimension_values[6],
-					}
-
-					# metrics
-					metrics = {
-						'ga:uniquePurchases'	=> metric_values[0],
-						'ga:sessions'			=> metric_values[1],
-						'ga:totalValue'			=> metric_values[2],
-					}
-
-					start_at 	= Time.parse( dimensions['ga:date'] ).beginning_of_day
-					end_at 		= start_at.end_of_day
-
-					marketing_report_rows << {
-						dimensions: {
-							start_at:				start_at,
-							end_at: 				end_at,
-							source:					dimensions['ga:source'],
-							medium:					dimensions['ga:medium'],
-							campaign:				dimensions['ga:campaign'],
-							content:				dimensions['ga:adContent'],
-							term:					dimensions['ga:keyword'],
-						},
-						metrics: {
-							purchase_count:			metrics['ga:uniquePurchases'],
-							purchase_uniq_count:	metrics['ga:uniquePurchases'],
-							purchase_value:			(metrics['ga:totalValue'].to_f * 100).to_i,
-						},
-					}
-
-				end
+				response.rows.each do |row|
 
 
-				report = get_report( report_request, next_page_token: report.next_page_token )
-			end
-
-			marketing_report_rows
-
-		end
-
-		def extract_sessions_marketing_report( args = {} )
-			view_id		= args[:view_id]
-
-			end_at 		= args[:end_at] || Time.now
-			start_at 	= args[:start_at] || (2.week.ago + 1.day)
-
-			start_at 	= start_at.strftime('%Y-%m-%d') unless start_at.is_a? String
-			end_at 		= end_at.strftime('%Y-%m-%d') unless end_at.is_a? String
-
-			# queries session with at least one transaction.  Which would be the last
-			# one before a sale, thus giving us the last attribution.
-			report_request_data = {
-				"dimensions" => [
-					{
-						"name" => "ga:date"
-					},
-					{
-						"name" => "ga:medium"
-					},
-					{
-						"name" => "ga:campaign"
-					},
-					{
-						"name" => "ga:adContent"
-					},
-					{
-						"name" => "ga:source"
-					},
-					{
-						"name" => "ga:keyword"
-					},
-				],
-				"viewId" => view_id,
-				"metrics" => [
-					{
-						"expression" => "ga:sessions",
-						"formattingType" => "INTEGER"
-					},
-				],
-				"dateRanges" => [
-					{
-						"startDate" => start_at,
-						"endDate" => end_at
-					}
-				]
-			}
-
-			report_request = build_report_request( report_request_data )
-
-			report = get_report( report_request )
-
-			marketing_report_rows = []
-
-			while( report.present? )
-
-				report.data.rows.each do |row|
 
 
-					metric_values = row.metrics.first.values
-					dimension_values = row.dimensions
+					metric_values = row.metric_values.collect(&:value).collect(&:to_f)
+					dimension_values = row.dimension_values.collect(&:value).collect(&:to_s)
 
 					dimension_values.each_with_index do |value,index|
 						dimension_values[index] = nil if ['(not set)','(none)', '(not provided)'].include? value
@@ -375,94 +214,59 @@ module Aristotle
 
 					# metrics
 					metrics = {
-						'ga:sessions'			=> metric_values[0]
+						'ga:uniquePurchases'	=> metric_values[0],
+						'ga:sessions'			=> metric_values[1],
+						'ga:totalValue'			=> metric_values[2],
 					}
 
-					start_at 	= Time.parse( dimensions['ga:date'] ).beginning_of_day
-					end_at 		= start_at.end_of_day
+					# puts JSON.pretty_generate(dimensions)
+					# puts JSON.pretty_generate(metrics)
+
+					row_start_at 	= Time.parse( dimensions['ga:date'] ).beginning_of_day
+					row_end_at 		= row_start_at.end_of_day
 
 					marketing_report_rows << {
 						dimensions: {
-							start_at:			start_at,
-							end_at: 			end_at,
-							source:				dimensions['ga:source'],
-							medium:				dimensions['ga:medium'],
-							campaign:			dimensions['ga:campaign'],
-							content:			dimensions['ga:adContent'],
-							term:				dimensions['ga:keyword'],
+							start_at:				row_start_at,
+							end_at: 				row_end_at,
+							source:					dimensions['ga:source'],
+							medium:					dimensions['ga:medium'],
+							campaign:				dimensions['ga:campaign'],
+							content:				dimensions['ga:adContent'],
+							term:					dimensions['ga:keyword'],
 						},
 						metrics: {
-							click_count:		metrics['ga:sessions'],
-							click_uniq_count:	metrics['ga:sessions'],
+							purchase_count:			metrics['ga:uniquePurchases'],
+							purchase_uniq_count:	metrics['ga:uniquePurchases'],
+							purchase_value:			(metrics['ga:totalValue'].to_f * 100).to_i,
 						},
 					}
-
 				end
 
 
-				report = get_report( report_request, next_page_token: report.next_page_token )
+				# puts "JSON.pretty_generate(marketing_report_rows)"
+				# puts JSON.pretty_generate(marketing_report_rows)
+				# die()
+
+				request = Google::Analytics::Data::V1beta::RunReportRequest.new(
+					property: "properties/#{property_id}",
+					metrics: metric_fields,
+					dimensions: dimension_fields,
+					date_ranges: date_ranges,
+					metric_filter: metric_filter,
+					order_bys: [orderby],
+					limit: limit,
+					offset: offset,
+				)
+				response = @client.run_report request
+				# # puts JSON.pretty_generate response.to_h
+				# response = nil
 			end
+
+			puts JSON.pretty_generate(marketing_report_rows)
 
 			marketing_report_rows
 
-		end
-
-		def build_get_reports_request( report_requests_data )
-			report_requests = []
-
-			report_requests_data.each do |report_request_data|
-				report_requests << build_analyticsreporting_object( Analyticsreporting::ReportRequest.new, report_request_data )
-			end
-
-			Analyticsreporting::GetReportsRequest.new( report_requests: report_requests )
-
-		end
-
-		def get_report( report_request, args = {} )
-			return nil if args.has_key?(:next_page_token) && args[:next_page_token].nil?
-
-			report_request.page_token = args[:next_page_token]
-			get_report_request = Analyticsreporting::GetReportsRequest.new( report_requests: [report_request] )
-			report = @client.batch_get_reports( get_report_request ).reports.first
-
-			report
-		end
-
-		def build_analyticsreporting_object( object, cammel_case_attributes )
-
-			cammel_case_attributes.each do |attribute, data|
-
-
-				attribute_value = data
-
-				if data.is_a? Hash
-
-					attribute_class = attribute.sub(/^./, &:upcase)
-					attribute_class = 'SegmentDefinition' if ['SessionSegment', 'UserSegment'].include?( attribute_class )
-
-					attribute_value = "#{Analyticsreporting.name}::#{attribute_class}".constantize.new
-					build_analyticsreporting_object( attribute_value, data )
-
-				elsif data.is_a? Array
-
-					attribute_value = []
-
-					data.each do |array_data_element|
-						child_object = "#{Analyticsreporting.name}::#{attribute.sub(/^./, &:upcase).singularize}".constantize.new
-						attribute_value << build_analyticsreporting_object( child_object, array_data_element )
-					end
-
-
-				end
-
-				object.try("#{attribute.underscore}=",attribute_value)
-			end
-
-			object
-		end
-
-		def build_report_request( report_request_data )
-			build_analyticsreporting_object( Analyticsreporting::ReportRequest.new, report_request_data )
 		end
 
 	end
