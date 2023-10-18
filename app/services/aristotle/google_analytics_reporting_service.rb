@@ -238,7 +238,7 @@ module Aristotle
 
 			marketing_report_rows = []
 
-			while( report.present? )
+			while( report.present? && report.data.present? && report.data.rows.present? )
 
 				report.data.rows.each do |row|
 
