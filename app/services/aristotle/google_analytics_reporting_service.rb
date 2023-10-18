@@ -19,6 +19,13 @@ require 'google/apis/analyticsreporting_v4'
 # Basics: https://developers.google.com/analytics/devguides/reporting/core/v4/basics
 # API Exporer: https://developers.google.com/apis-explorer/#p/analyticsreporting/v4/analyticsreporting.reports.batchGet
 
+# Documentation for the data import
+# https://stackoverflow.com/questions/75434844/google-analytics-reporting-v4-with-streams-instead-of-views
+# https://www.contentful.com/help/google-analytics-service-account-setup/
+# https://developers.google.com/analytics/devguides/reporting/data/v1/rest/v1beta/properties/runReport
+
+
+
 module Aristotle
 	class GoogleAnalyticsReportingService
 
