@@ -9,7 +9,7 @@ module Aristotle
 		belongs_to :billing_location, required: false, class_name: 'Aristotle::Location'
 		belongs_to :shipping_location, required: false, class_name: 'Aristotle::Location'
 		belongs_to :wholesale_client, required: false
-		belongs_to :event, required: false 
+		belongs_to :aristotle_event, required: false, class_name: 'Aristotle::Event'
 
 		acts_as_taggable_array_on :tags
 

@@ -14,7 +14,7 @@ module Aristotle
 		belongs_to :subscription, required: false
 		belongs_to :warehouse, required: false
 		belongs_to :wholesale_client, required: false
-		belongs_to :event, required: false
+		belongs_to :aristotle_event, required: false, class_name: 'Aristotle::Event'
 
 		has_many :transaction_skus
 
