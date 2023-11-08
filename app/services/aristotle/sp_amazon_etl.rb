@@ -26,6 +26,11 @@ module Aristotle
 		JAPAN_MARKETPLACE_ID =	'A1VC38T7YXB528' #	JP
 		AUSTRALIA_MARKETPLACE_ID =	'A39IBJ37TRP1C6' #	AU
 
+		NETHERLANDS_MARKETPLACE_ID =	'A1805IZSGTT6HS' #	NL
+		POLAND_MARKETPLACE_ID =	'A1C3SOZRARQ6R3' #	PL
+		SWEDEN_MARKETPLACE_ID =	'A2NODRKZP88ZB9' #	SE
+		BELGIUM_MARKETPLACE_ID =	'AMEN7PMS3EDWL' #	BE
+
 		MARKETPLACE_NAMES = {
 			UNITED_STATES_MARKETPLACE_ID => 'Amazon.com',
 			CANADA_MARKETPLACE_ID => 'Amazon.ca',
@@ -39,6 +44,10 @@ module Aristotle
 			CHINA_MARKETPLACE_ID =>	'Amazon.cn',
 			JAPAN_MARKETPLACE_ID =>	'Amazon.up',
 			AUSTRALIA_MARKETPLACE_ID =>	'Amazon.au',
+			NETHERLANDS_MARKETPLACE_ID =>	'Amazon.nl',
+			POLAND_MARKETPLACE_ID =>	'Amazon.pl',
+			SWEDEN_MARKETPLACE_ID =>	'Amazon.se',
+			BELGIUM_MARKETPLACE_ID =>	'Amazon.be',
 		}
 
 		MARKETPLACE_COUNTRY_IDS = {
@@ -54,16 +63,24 @@ module Aristotle
 			'CN' => CHINA_MARKETPLACE_ID,
 			'JP' => JAPAN_MARKETPLACE_ID,
 			'AU' => AUSTRALIA_MARKETPLACE_ID,
+			'NL' => NETHERLANDS_MARKETPLACE_ID,
+			'PL' => POLAND_MARKETPLACE_ID,
+			'SE' => SWEDEN_MARKETPLACE_ID,
+			'BE' => BELGIUM_MARKETPLACE_ID,
 		}
 
 		MARKETPLACE_COUNTRY_HOSTS = {
 			'US' => 'mws.amazonservices.com',
 			'CA' => 'mws.amazonservices.ca',
+			'BE' => 'mws-eu.amazonservices.com',
 			'ES' => 'mws-eu.amazonservices.com',
 			'GB' => 'mws-eu.amazonservices.com',
 			'FR' => 'mws-eu.amazonservices.com',
 			'DE' => 'mws-eu.amazonservices.com',
 			'IT' => 'mws-eu.amazonservices.com',
+			'NL' => 'mws-eu.amazonservices.com',
+			'PL' => 'mws-eu.amazonservices.com',
+			'SE' => 'mws-eu.amazonservices.com',
 			'BR' => 'mws.amazonservices.com',
 			'IN' => 'mws.amazonservices.in',
 			'CN' => 'mws.amazonservices.com.cn',
@@ -79,12 +96,16 @@ module Aristotle
 			'MX' => 'NA',
 			'US' => 'NA',
 
+			'BE' => 'EU',
 			'DE' => 'EU',
 			'ES' => 'EU',
 			'FR' => 'EU',
 			'GB' => 'EU',
 			'IN' => 'EU',
 			'IT' => 'EU',
+			'NL' => 'EU',
+			'PL' => 'EU',
+			'SE' => 'EU',
 			
 			# 'CN' => 'CN',?
 			'AU' => 'FE',
@@ -105,6 +126,10 @@ module Aristotle
 			CHINA_MARKETPLACE_ID =>	'CNY',
 			JAPAN_MARKETPLACE_ID =>	'JPY',
 			AUSTRALIA_MARKETPLACE_ID =>	'AUD',
+			NETHERLANDS_MARKETPLACE_ID =>	'EUR',
+			POLAND_MARKETPLACE_ID =>	'EUR',
+			SWEDEN_MARKETPLACE_ID =>	'EUR',
+			BELGIUM_MARKETPLACE_ID =>	'EUR',
 			'US' => 'USD',
 			'CA' => 'CAD',
 			'ES' => 'EUR',
@@ -117,6 +142,11 @@ module Aristotle
 			'CN' => 'CNY',
 			'JP' => 'JPY',
 			'AU' => 'AUD',
+
+			'NL' => 'EUR',
+			'PL' => 'EUR',
+			'SE' => 'EUR',
+			'BE' => 'EUR',
 		}
 
 		SETTLEMENT_AMOUNT_TYPE_MAPPING = {
