@@ -184,7 +184,7 @@ module Aristotle
 			@credentials[:client_id]				||= ENV["AWS_#{marketplace_host_group}_SP_API_LWA_CLIENT_ID"] || ENV["AWS_SP_API_LWA_CLIENT_ID"]
 			@credentials[:client_secret]			||= ENV["AWS_#{marketplace_host_group}_SP_API_LWA_CLIENT_SECRET"] || ENV["AWS_SP_API_LWA_CLIENT_SECRET"]
 			@credentials[:aws_access_key_id]		||= ENV["AWS_#{marketplace_host_group}_SP_API_NHC_ANALYTICS_ACCESS_KEY_ID"] || ENV["AWS_SP_API_NHC_ANALYTICS_ACCESS_KEY_ID"]
-			@credentials[:aws_secret_access_key]	||= ENV["AWS_#{marketplace_host_group}_SP_API_NHC_ANALYTICS_SECRET_ACCESS_KEY_ID"] || 
+			@credentials[:aws_secret_access_key]	||= ENV["AWS_#{marketplace_host_group}_SP_API_NHC_ANALYTICS_SECRET_ACCESS_KEY_ID"] || ENV["AWS_SP_API_NHC_ANALYTICS_SECRET_ACCESS_KEY_ID"]
 
 			@credentials[:region]					||= ENV["AWS_#{marketplace_host_group}_SP_REGION"] || marketplace_host_group.downcase #'na' # 'eu'
 
