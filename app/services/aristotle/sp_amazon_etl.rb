@@ -728,192 +728,196 @@ module Aristotle
 
 			refunds = []
 
-			refund_settlements_grouped = {}
+			if refund_settlements.present?
 
-			refund_settlements.each do |refund_settlement|
-				order_id = refund_settlement['AmazonOrderID']
-				posted_date = refund_settlement['Fulfillment']['PostedDate']
-				group_key = "#{order_id}:#{posted_date}"
-
-				refund_settlements_grouped[group_key] ||= []
-				refund_settlements_grouped[group_key] << refund_settlement
-			end
-
-			refund_settlements_grouped.each do |key,refund_settlements|
-				# puts "refund_settlements_group #{key} #{refund_settlements.count}"
-				order_items = {}
-				posted_date = nil
-				amazon_order_id = nil
-
-				refund_total = 0.00
-				refund_total = 0.00
-				refund_shipping = 0.00
-				refund_tax = 0.00
-				refund_discount = 0.00
-				refund_commission = 0.00
-				currency = @default_currency #refund_settlements.first['currency']
-
-				if refund_settlements.first['MarketplaceName'].present?
-					marketplace_name = refund_settlements.first['MarketplaceName']
-					# puts marketplace_name
-					marketpace_id = MARKETPLACE_NAMES.key(marketplace_name)
-					currency ||= (MARKETPLACE_CURRENCIES[marketpace_id] || 'USD')
-				end
-
+				refund_settlements_grouped = {}
 
 				refund_settlements.each do |refund_settlement|
-					# puts "JSON.pretty_generate(refund_settlement) #{refund_settlement['AmazonOrderID']}"
-					# puts JSON.pretty_generate(refund_settlement)
+					order_id = refund_settlement['AmazonOrderID']
+					posted_date = refund_settlement['Fulfillment']['PostedDate']
+					group_key = "#{order_id}:#{posted_date}"
 
-					amazon_order_id = refund_settlement['AmazonOrderID']
-					
-					posted_date		= refund_settlement['Fulfillment']['PostedDate']
-
-					adjusted_items = refund_settlement['Fulfillment']['AdjustedItem']
-					adjusted_items = [adjusted_items].select(&:present?) unless adjusted_items.is_a? Array
-					
-					# puts "adjusted_items.count #{adjusted_items.count}"
-					adjusted_items.each do |adjusted_item|
-						order_item_code	= adjusted_item['AmazonOrderItemCode']
-						seller_sku		= adjusted_item['SKU']
-						
-						# puts "JSON.pretty_generate(adjusted_item)"
-						# puts JSON.pretty_generate(adjusted_item)
-
-
-						adjustments = []
-						commission_adjustments = []
-
-						item_price_components = adjusted_item.dig('ItemPriceAdjustments','Component')
-						item_price_components = [item_price_components].select(&:present?) unless item_price_components.is_a? Array
-						item_price_components.each do |adjustment|
-							adjustments << { adjustment_type: "ItemPrice#{adjustment['Type']}", adjustment: adjustment  }
-						end
-
-						fee_components = adjusted_item.dig('ItemFeeAdjustments','Fee')
-						fee_components = [fee_components].select(&:present?) unless fee_components.is_a? Array
-						fee_components.each do |adjustment|
-							adjustments << { adjustment_type: "Fee#{adjustment['Type']}", adjustment: adjustment  }
-						end
-
-						# puts "JSON.pretty_generate(adjustments)"
-						# puts JSON.pretty_generate(adjustments)
-
-						promotion_components = adjusted_item.dig('PromotionAdjustment')
-						promotion_components = [promotion_components].select(&:present?) unless promotion_components.is_a? Array
-						promotion_components.each do |adjustment|
-							adjustments << { adjustment_type: "Promotion#{adjustment['Type']}", adjustment: adjustment  }
-						end
-
-						adjustments = adjustments.select{|adjustment_row| adjustment_row[:adjustment].present? }
-
-						total_adjustment_types = [ 'ItemPricePrincipal', 'ItemPriceShipping', 'PromotionShipping', 'ItemPriceTax', 'ShippingTax', 'PromotionTax', 'PromotionPrincipal' ]
-						total_adjustments = adjustments.select{ |adjustment_row| total_adjustment_types.include?(adjustment_row[:adjustment_type]) }
-
-						shipping_adjustment_types = [ 'ItemPriceShipping', 'PromotionShipping' ]
-						shipping_adjustments = adjustments.select{ |adjustment_row| shipping_adjustment_types.include?(adjustment_row[:adjustment_type]) }
-
-						tax_adjustment_types = [ 'ItemPriceTax', 'ShippingTax', 'PromotionTax' ]
-						tax_adjustments = adjustments.select{ |adjustment_row| tax_adjustment_types.include?(adjustment_row[:adjustment_type]) }
-
-						discount_adjustment_types = [ 'PromotionPrincipal' ]
-						discount_adjustments = adjustments.select{ |adjustment_row| discount_adjustment_types.include?(adjustment_row[:adjustment_type]) }
-
-						commission_adjustment_types = [ 'FeeCommission' ]
-						commission_adjustments = adjustments.select{ |adjustment_row| commission_adjustment_types.include?(adjustment_row[:adjustment_type]) }
-
-
-						this_refund_total		= total_adjustments.sum{|adjustment_row| adjustment_row[:adjustment]['Amount'].to_f }
-						this_refund_shipping	= shipping_adjustments.sum{|adjustment_row| adjustment_row[:adjustment]['Amount'].to_f }
-						this_refund_tax			= tax_adjustments.sum{|adjustment_row| adjustment_row[:adjustment]['Amount'].to_f }
-						this_refund_discount	= discount_adjustments.sum{|adjustment_row| adjustment_row[:adjustment]['Amount'].to_f }
-						this_refund_commission	= commission_adjustments.sum{|adjustment_row| adjustment_row[:adjustment]['Amount'].to_f }
-						this_refund_price		= this_refund_total + this_refund_discount - this_refund_tax - this_refund_shipping
-
-						refund_total		= refund_total + this_refund_total
-						refund_shipping		= refund_shipping + this_refund_shipping
-						refund_tax			= refund_tax + this_refund_tax
-						refund_discount		= refund_discount + this_refund_discount
-						refund_commission	= refund_commission + this_refund_commission
-						 
-
-						# puts "refund_settlement " + [order_item_code, amount, seller_sku, refund_total].to_json
-
-						if order_item_code.present?
-
-							order_item = order_items[order_item_code]
-							order_item ||= {
-								"OrderItemId" => order_item_code,
-								'SellerSKU' => seller_sku,
-								'ItemPrice' => {
-									'Amount' => this_refund_price,
-									'CurrencyCode' => currency,
-								},
-								'ItemTotal' => {
-									'Amount' => this_refund_total,
-									'CurrencyCode' => currency,
-								},
-								'PromotionDiscount' => {
-									'Amount' => this_refund_discount,
-									'CurrencyCode' => currency,
-								},
-								'ShippingPrice' => {
-									'Amount' => this_refund_shipping,
-									'CurrencyCode' => currency,
-								},
-								'ItemTax' => {
-									'Amount' => this_refund_tax,
-									'CurrencyCode' => currency,
-								},
-								'ItemCommission' => {
-									'Amount' => this_refund_commission,
-									'CurrencyCode' => currency,
-								},
-								# 'Adjustments' => [],
-								# 'RefundSettlments' => [],
-								# 'QuantityOrdered' => refund_settlement['quantity-purchased'],
-							}
-
-							# order_item['Adjustments'] = order_item['Adjustments'] + adjustments
-							# order_item['RefundSettlments'] = (order_item['RefundSettlments'] + [refund_settlement]).uniq
-
-
-							# if ( amount_key = SETTLEMENT_AMOUNT_TYPE_MAPPING[refund_settlement['amount-type']] ).present?
-							# 	order_item[amount_key] ||= { "CurrencyCode" => currency, "Amount" => 0.00 }
-							# 	order_item[amount_key]['Amount'] = order_item[amount_key]['Amount'] + amount
-							# end
-
-							# if refund_settlement['amount-type'] == 'Promotion'
-							# 	order_item['PromotionIds'] ||= []
-							# 	order_item['PromotionIds'] << { 'PromotionId' => refund_settlement['promotion-id'] }
-							# end
-
-							order_items[order_item_code] = order_item
-
-						end
-					end
-
-					
-
+					refund_settlements_grouped[group_key] ||= []
+					refund_settlements_grouped[group_key] << refund_settlement
 				end
 
-				refund = {
-					'AmazonOrderId' => amazon_order_id,
-					'RefundDate' => posted_date,
-					'OrderTotal' => {
-						'Amount' => refund_total,
-						'CurrencyCode' => currency,
-					},
-					'OrderItems' => order_items.values,
-					# 'RefundSettlements' => refund_settlements,
-				}
+				refund_settlements_grouped.each do |key,refund_settlements|
+					# puts "refund_settlements_group #{key} #{refund_settlements.count}"
+					order_items = {}
+					posted_date = nil
+					amazon_order_id = nil
 
-				convert_amazon_order_currency( refund, refund['RefundDate'] )
+					refund_total = 0.00
+					refund_total = 0.00
+					refund_shipping = 0.00
+					refund_tax = 0.00
+					refund_discount = 0.00
+					refund_commission = 0.00
+					currency = @default_currency #refund_settlements.first['currency']
 
-				# puts "refund!!!"
-				# puts JSON.pretty_generate( refund )
+					if refund_settlements.first['MarketplaceName'].present?
+						marketplace_name = refund_settlements.first['MarketplaceName']
+						# puts marketplace_name
+						marketpace_id = MARKETPLACE_NAMES.key(marketplace_name)
+						currency ||= (MARKETPLACE_CURRENCIES[marketpace_id] || 'USD')
+					end
 
-				refunds << refund
+
+					refund_settlements.each do |refund_settlement|
+						# puts "JSON.pretty_generate(refund_settlement) #{refund_settlement['AmazonOrderID']}"
+						# puts JSON.pretty_generate(refund_settlement)
+
+						amazon_order_id = refund_settlement['AmazonOrderID']
+						
+						posted_date		= refund_settlement['Fulfillment']['PostedDate']
+
+						adjusted_items = refund_settlement['Fulfillment']['AdjustedItem']
+						adjusted_items = [adjusted_items].select(&:present?) unless adjusted_items.is_a? Array
+						
+						# puts "adjusted_items.count #{adjusted_items.count}"
+						adjusted_items.each do |adjusted_item|
+							order_item_code	= adjusted_item['AmazonOrderItemCode']
+							seller_sku		= adjusted_item['SKU']
+							
+							# puts "JSON.pretty_generate(adjusted_item)"
+							# puts JSON.pretty_generate(adjusted_item)
+
+
+							adjustments = []
+							commission_adjustments = []
+
+							item_price_components = adjusted_item.dig('ItemPriceAdjustments','Component')
+							item_price_components = [item_price_components].select(&:present?) unless item_price_components.is_a? Array
+							item_price_components.each do |adjustment|
+								adjustments << { adjustment_type: "ItemPrice#{adjustment['Type']}", adjustment: adjustment  }
+							end
+
+							fee_components = adjusted_item.dig('ItemFeeAdjustments','Fee')
+							fee_components = [fee_components].select(&:present?) unless fee_components.is_a? Array
+							fee_components.each do |adjustment|
+								adjustments << { adjustment_type: "Fee#{adjustment['Type']}", adjustment: adjustment  }
+							end
+
+							# puts "JSON.pretty_generate(adjustments)"
+							# puts JSON.pretty_generate(adjustments)
+
+							promotion_components = adjusted_item.dig('PromotionAdjustment')
+							promotion_components = [promotion_components].select(&:present?) unless promotion_components.is_a? Array
+							promotion_components.each do |adjustment|
+								adjustments << { adjustment_type: "Promotion#{adjustment['Type']}", adjustment: adjustment  }
+							end
+
+							adjustments = adjustments.select{|adjustment_row| adjustment_row[:adjustment].present? }
+
+							total_adjustment_types = [ 'ItemPricePrincipal', 'ItemPriceShipping', 'PromotionShipping', 'ItemPriceTax', 'ShippingTax', 'PromotionTax', 'PromotionPrincipal' ]
+							total_adjustments = adjustments.select{ |adjustment_row| total_adjustment_types.include?(adjustment_row[:adjustment_type]) }
+
+							shipping_adjustment_types = [ 'ItemPriceShipping', 'PromotionShipping' ]
+							shipping_adjustments = adjustments.select{ |adjustment_row| shipping_adjustment_types.include?(adjustment_row[:adjustment_type]) }
+
+							tax_adjustment_types = [ 'ItemPriceTax', 'ShippingTax', 'PromotionTax' ]
+							tax_adjustments = adjustments.select{ |adjustment_row| tax_adjustment_types.include?(adjustment_row[:adjustment_type]) }
+
+							discount_adjustment_types = [ 'PromotionPrincipal' ]
+							discount_adjustments = adjustments.select{ |adjustment_row| discount_adjustment_types.include?(adjustment_row[:adjustment_type]) }
+
+							commission_adjustment_types = [ 'FeeCommission' ]
+							commission_adjustments = adjustments.select{ |adjustment_row| commission_adjustment_types.include?(adjustment_row[:adjustment_type]) }
+
+
+							this_refund_total		= total_adjustments.sum{|adjustment_row| adjustment_row[:adjustment]['Amount'].to_f }
+							this_refund_shipping	= shipping_adjustments.sum{|adjustment_row| adjustment_row[:adjustment]['Amount'].to_f }
+							this_refund_tax			= tax_adjustments.sum{|adjustment_row| adjustment_row[:adjustment]['Amount'].to_f }
+							this_refund_discount	= discount_adjustments.sum{|adjustment_row| adjustment_row[:adjustment]['Amount'].to_f }
+							this_refund_commission	= commission_adjustments.sum{|adjustment_row| adjustment_row[:adjustment]['Amount'].to_f }
+							this_refund_price		= this_refund_total + this_refund_discount - this_refund_tax - this_refund_shipping
+
+							refund_total		= refund_total + this_refund_total
+							refund_shipping		= refund_shipping + this_refund_shipping
+							refund_tax			= refund_tax + this_refund_tax
+							refund_discount		= refund_discount + this_refund_discount
+							refund_commission	= refund_commission + this_refund_commission
+							 
+
+							# puts "refund_settlement " + [order_item_code, amount, seller_sku, refund_total].to_json
+
+							if order_item_code.present?
+
+								order_item = order_items[order_item_code]
+								order_item ||= {
+									"OrderItemId" => order_item_code,
+									'SellerSKU' => seller_sku,
+									'ItemPrice' => {
+										'Amount' => this_refund_price,
+										'CurrencyCode' => currency,
+									},
+									'ItemTotal' => {
+										'Amount' => this_refund_total,
+										'CurrencyCode' => currency,
+									},
+									'PromotionDiscount' => {
+										'Amount' => this_refund_discount,
+										'CurrencyCode' => currency,
+									},
+									'ShippingPrice' => {
+										'Amount' => this_refund_shipping,
+										'CurrencyCode' => currency,
+									},
+									'ItemTax' => {
+										'Amount' => this_refund_tax,
+										'CurrencyCode' => currency,
+									},
+									'ItemCommission' => {
+										'Amount' => this_refund_commission,
+										'CurrencyCode' => currency,
+									},
+									# 'Adjustments' => [],
+									# 'RefundSettlments' => [],
+									# 'QuantityOrdered' => refund_settlement['quantity-purchased'],
+								}
+
+								# order_item['Adjustments'] = order_item['Adjustments'] + adjustments
+								# order_item['RefundSettlments'] = (order_item['RefundSettlments'] + [refund_settlement]).uniq
+
+
+								# if ( amount_key = SETTLEMENT_AMOUNT_TYPE_MAPPING[refund_settlement['amount-type']] ).present?
+								# 	order_item[amount_key] ||= { "CurrencyCode" => currency, "Amount" => 0.00 }
+								# 	order_item[amount_key]['Amount'] = order_item[amount_key]['Amount'] + amount
+								# end
+
+								# if refund_settlement['amount-type'] == 'Promotion'
+								# 	order_item['PromotionIds'] ||= []
+								# 	order_item['PromotionIds'] << { 'PromotionId' => refund_settlement['promotion-id'] }
+								# end
+
+								order_items[order_item_code] = order_item
+
+							end
+						end
+
+						
+
+					end
+
+					refund = {
+						'AmazonOrderId' => amazon_order_id,
+						'RefundDate' => posted_date,
+						'OrderTotal' => {
+							'Amount' => refund_total,
+							'CurrencyCode' => currency,
+						},
+						'OrderItems' => order_items.values,
+						# 'RefundSettlements' => refund_settlements,
+					}
+
+					convert_amazon_order_currency( refund, refund['RefundDate'] )
+
+					# puts "refund!!!"
+					# puts JSON.pretty_generate( refund )
+
+					refunds << refund
+
+				end
 
 			end
 
