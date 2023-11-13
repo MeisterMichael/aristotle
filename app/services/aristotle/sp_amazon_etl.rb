@@ -729,8 +729,6 @@ module Aristotle
 
 			refunds = []
 
-			if refund_settlements.present?
-
 			refund_settlements_grouped = {}
 
 			refund_settlements.each do |refund_settlement|
