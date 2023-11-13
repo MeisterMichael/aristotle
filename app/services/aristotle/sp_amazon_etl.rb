@@ -723,7 +723,8 @@ module Aristotle
 
 			refund_settlements = settlements['AmazonEnvelope']['Message']['SettlementReport']['Refund']
 			refund_settlements ||= []
-			refund_settlements = refund_settlements.select(&:present?)
+			refund_settlements = [refund_settlements] unless refund_settlements.is_a? Array
+			refund_settlements = refund_settlements.select{|refund_settlement| refund_settlement.present? }
 			# puts JSON.pretty_generate(refund_settlements)
 			# settlements
 
