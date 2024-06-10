@@ -476,7 +476,8 @@ module Aristotle
 			event_query_filters = ""
 			event_query_filters = event_query_filters + "AND bunyan_events.name ilike '%#{args[:ilike_name]}%'" if args[:ilike_name].present?
 			event_query_filters = event_query_filters + "AND bunyan_events.name ilike '#{args[:name_starts_with]}%'" if args[:name_starts_with].present?
-			event_query_filters = event_query_filters + "AND bunyan_events.name = '#{args[:name_is]}'" if args[:name_is].present?
+			event_query_filters = event_query_filters + "AND bunyan_events.name = '#{args[:name_is]}'" if args[:name_is].present? && args[:name_is].is_a?(String)
+			event_query_filters = event_query_filters + "AND bunyan_events.name IN ('#{args[:name_is].join("', '")}')" if args[:name_is].present? && args[:name_is].is_a?(Array)
 			event_query_filters = event_query_filters + "AND bunyan_events.category = '#{args[:category]}'" if args[:category].present?
 			event_query_filters = event_query_filters + "AND bunyan_events.referrer_path ilike '#{args[:referrer_path_starts_with]}%'" if args[:referrer_path_starts_with].present?
 			event_query_filters = event_query_filters + "AND bunyan_events.page_path ilike '#{args[:page_path_starts_with]}%'" if args[:page_path_starts_with].present?
@@ -498,6 +499,8 @@ AND bunyan_events.name NOT IN (:excluded_event_names)
 ORDER BY bunyan_events.id ASC
 LIMIT #{limit}
 SQL
+
+			puts "event_query #{event_query}"
 
 			page_i = 1
 			while( true ) do
