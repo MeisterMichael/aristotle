@@ -403,6 +403,9 @@ module Aristotle
 			src_order[:fulfillment_status] = src_order[:fulfillment_status].to_i
 
 
+			src_order[:trials] = JSON.parse(src_order[:trials], symbolize_names: true) if src_order[:trials].present?
+			puts "src_order[:trials] #{src_order[:trials].to_json}"
+
 			src_order[:purchase_event] = exec_query("SELECT * FROM bunyan_events WHERE name = 'purchase' AND category = 'ecom' AND target_obj_type = 'Bazaar::Order' AND target_obj_id = #{src_order[:id]}").first.try(:symbolize_keys)
 			# if src_order[:purchase_event].present? && src_order[:purchase_event][:client_id].present?
 			# 	src_order[:purchase_event][:client] = exec_query("SELECT * FROM bunyan_clients WHERE id = #{src_order[:purchase_event][:client_id]}").first.try(:symbolize_keys)
@@ -916,6 +919,22 @@ module Aristotle
 				puts "state_attributes[:event_client_purchase_index] #{state_attributes[:event_client_purchase_index]}"
 			end
 
+			if src_order[:experiment_id].present?
+				experiment = Experiment.create_with(experiment_name: src_order[:experiment_title]).where(data_src: @data_src, src_experiment_id: src_order[:experiment_id]).first_or_create if src_order[:experiment_id].present?
+				experiment_variant = ExperimentVariant.create_with(experiment_name: src_order[:experiment_title], variant_name: src_order[:variant_title], experiment: experiment).where(data_src: @data_src, src_experiment_id: src_order[:experiment_id], src_variant_id: src_order[:variant_id]).first_or_create if src_order[:variant_id].present?
+
+				state_attributes = state_attributes.merge(
+					experiment: experiment,
+					experiment_variant: experiment_variant,
+					src_experiment_id: src_order[:experiment_id],
+					src_trial_id: src_order[:trial_id],
+					src_variant_id: src_order[:variant_id],
+					experiment_name: src_order[:experiment_title],
+					variant_name: src_order[:variant_title],
+					experiments_cache: (src_order[:trials] || []).collect{|trial| { src_experiment_id: trial[:experiment_id], src_trial_id: trial[:id], src_variant_id: trial[:variant_id], created_at: trial[:created_at], experiment_name: trial[:experiment_title], variant_name: trial[:variant_title] } }
+				)
+			end
+
 			src_order[:_state_attributes] = state_attributes
 		end
 
@@ -971,6 +990,21 @@ module Aristotle
 					src_created_at: transaction_item.src_created_at,
 					src_subscription_id: src_subscription_id,
 					src_order_id: transaction_item.src_order_id,
+
+					event_data_src:			transaction_item.event_data_src,
+					event_client_id:		transaction_item.src_event_client_id,
+					event_id:				transaction_item.src_event_id,
+					aristotle_event:		transaction_item.aristotle_event,
+
+
+					experiment:				transaction_item.experiment,
+					experiment_variant:		transaction_item.experiment_variant,
+					src_experiment_id:		transaction_item.src_experiment_id,
+					src_trial_id:			transaction_item.src_trial_id,
+					src_variant_id:			transaction_item.src_variant_id,
+					experiment_name:		transaction_item.experiment_name,
+					variant_name:			transaction_item.variant_name,
+					experiments_cache:		transaction_item.experiments_cache,
 
 					campaign: transaction_item.campaign,
 					source: transaction_item.source,

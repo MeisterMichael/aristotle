@@ -10,6 +10,8 @@ module Aristotle
 		belongs_to :shipping_location, required: false, class_name: 'Aristotle::Location'
 		belongs_to :wholesale_client, required: false
 		belongs_to :aristotle_event, required: false, class_name: 'Aristotle::Event'
+		belongs_to :experiment_variant, required: false
+		belongs_to :experiment, required: false
 
 		acts_as_taggable_array_on :tags
 

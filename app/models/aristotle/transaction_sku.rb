@@ -17,6 +17,8 @@ module Aristotle
 		belongs_to :warehouse, required: false
 		belongs_to :wholesale_client, required: false
 		belongs_to :aristotle_event, required: false, class_name: 'Aristotle::Event'
+		belongs_to :experiment, required: false
+		belongs_to :experiment_variant, required: false
 
 		acts_as_taggable_array_on :tags
 
