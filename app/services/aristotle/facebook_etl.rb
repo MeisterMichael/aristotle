@@ -1,3 +1,8 @@
+# https://developers.facebook.com/docs/marketing-api/access#graph-api-explorer
+# https://developers.facebook.com/docs/marketing-apis/overview/authentication/
+# export FACEBOOK_MARKETING_ACCESS_TOKEN=
+
+
 module Aristotle
 	class FacebookEtl
 
@@ -123,6 +128,8 @@ module Aristotle
 					# 	puts JSON.pretty_generate insight_row
 					# end
 
+					puts "        insights.each!"
+
 					insights.each do |insight_row|
 
 						# puts JSON.pretty_generate insight_row
@@ -159,12 +166,19 @@ module Aristotle
 
 					end
 
+					puts "        account_rows.count #{account_rows.count}"
+
 					rows = rows + account_rows
+					puts "        rows.count #{rows.count}"
 					puts "        success"
 				rescue Exception => e
 					puts "        failure occurred while querying insights (#{e.message})"
 					raise e unless e.message.include? "Please reduce the amount of data you're asking for, then retry your request"
 				end
+
+				puts "  -> cooling down between accounts"
+				sleep 10
+				puts "  -> cooling down complete"
 
 			end
 
