@@ -375,9 +375,14 @@ module Aristotle
 						event.offer 	||= @bazaar_etl.transform_offer( target_obj[:offer], data_src: event.data_src )
 					end
 
+					if target_obj[:upsell]
+						event.offer 	||= Offer.where( data_src: @bazaar_data_sources, src_offer_id: "Bazaar::Offer\##{target_obj[:upsell][:offer_id]}" ).first
+						event.offer 	||= @bazaar_etl.transform_offer( target_obj[:upsell][:offer], data_src: event.data_src )
+					end
+
 					if event.offer.blank?
 						puts "target_obj #{target_obj.to_json}"
-						die()
+						raise Exception.new "offer does not exist for Bazaar::UpsellOffer target object #{target_obj.to_json}"
 					end
 				when 'Bazaar::Transaction'
 
