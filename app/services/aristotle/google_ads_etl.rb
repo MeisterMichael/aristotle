@@ -226,7 +226,6 @@ QUERY
 			response = @ga_service.search( 
 				customer_id: @customer_id.gsub(/\-/,''),
 				query: query.strip,
-				page_size: 1000, 
 			)
 
 			if response.response.results.empty?
