@@ -69,6 +69,25 @@ module Aristotle
 				item[:subscription_plan] = extract_item( 'Bazaar::SubscriptionPlan', item[:subscription_plan_id] ) if item[:subscription_plan_id]
 				item[:offer] = extract_item( "Bazaar::Offer", item[:offer_id] ) if item[:offer_id]
 
+				item[:subscription_offers] = exec_query("SELECT * FROM bazaar_subscription_offers WHERE id = #{item_id}").to_a.collect(&:symbolize_keys)
+				item[:subscription_offers].each do |subscription_offer|
+					subscription_offer[:quantity]					= subscription_offer[:quantity].to_i
+					subscription_offer[:next_subscription_interval]	= subscription_offer[:next_subscription_interval].to_i
+					subscription_offer[:status]						= subscription_offer[:status].to_i
+
+					subscription_offer[:offer] = extract_item( 'Bazaar::Offer', subscription_offer[:offer_id] ) if subscription_offer[:offer_id].present?
+				end
+
+			elsif item_type == 'Bazaar::SubscriptionOffer'
+
+				item = exec_query("SELECT * FROM bazaar_subscription_offers WHERE id = #{item_id}").first.symbolize_keys
+
+				item[:quantity]						= item[:quantity].to_i
+				item[:next_subscription_interval]	= item[:next_subscription_interval].to_i
+				item[:status]						= item[:status].to_i
+
+				item[:offer] = extract_item( "Bazaar::Offer", item[:offer_id] ) if item[:offer_id].present?
+
 			elsif item_type == 'Bazaar::Offer'
 
 				item = exec_query("SELECT * FROM bazaar_offers WHERE id = #{item_id}").first.symbolize_keys
@@ -486,13 +505,15 @@ module Aristotle
 
 			src_order[:order_offers] = exec_query("SELECT * FROM bazaar_order_offers WHERE order_id = #{src_order[:id]}").to_a.collect(&:symbolize_keys)
 			src_order[:order_offers].each do |order_offer|
-				order_offer[:quantity]							= order_offer[:quantity].to_i
-				order_offer[:price]									= order_offer[:price].to_i
-				order_offer[:subtotal]							= order_offer[:subtotal].to_i
+				order_offer[:quantity]				= order_offer[:quantity].to_i
+				order_offer[:price]					= order_offer[:price].to_i
+				order_offer[:subtotal]				= order_offer[:subtotal].to_i
 				order_offer[:subscription_interval]	= order_offer[:subscription_interval].to_i
+				order_offer[:offer_interval]		= order_offer[:offer_interval].to_i
 
 				order_offer[:subscription] ||= extract_item( 'Bazaar::Subscription', order_offer[:subscription_id] )
 				order_offer[:offer] = extract_item( 'Bazaar::Offer', order_offer[:offer_id] )
+				order_offer[:subscription_offer] = extract_item( 'Bazaar::SubscriptionOffer', order_offer[:subscription_offer_id] ) if order_offer[:subscription_offer_id].present?
 
 				historical_sku_query = <<-SQL
 				SELECT bazaar_skus.*, bazaar_offer_skus.quantity, bazaar_offer_skus.start_interval, bazaar_offer_skus.max_intervals
