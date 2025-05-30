@@ -986,6 +986,7 @@ module Aristotle
 
 				transaction_item_attributes = {
 					src_subscription_id:		order_transaction_item.src_subscription_id,
+					src_subscription_offer_id:	order_transaction_item.src_subscription_offer_id,
 					subscription: 					order_transaction_item.subscription,
 					product:								order_transaction_item.product,
 					offer:									order_transaction_item.offer,
@@ -1067,6 +1068,7 @@ module Aristotle
 
 					transaction_item_attributes = {
 						src_subscription_id: 		order_transaction_item.src_subscription_id,
+						src_subscription_offer_id: 	order_transaction_item.src_subscription_offer_id,
 						subscription: 					order_transaction_item.subscription,
 						product:								order_transaction_item.product,
 						offer:									order_transaction_item.offer,
@@ -1135,6 +1137,7 @@ module Aristotle
 
 				transaction_item_attributes = {
 					src_subscription_id: 		order_transaction_item.src_subscription_id,
+					src_subscription_offer_id: 	order_transaction_item.src_subscription_offer_id,
 					subscription: 					order_transaction_item.subscription,
 					product:								order_transaction_item.product,
 					offer:									order_transaction_item.offer,

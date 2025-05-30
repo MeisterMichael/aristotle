@@ -1001,10 +1001,13 @@ module Aristotle
 			if subscription_attributes.present?
 
 				src_subscription_id = subscription_attributes[:src_subscription_id]
+				src_subscription_offer_id = subscription_attributes[:src_subscription_offer_id]
 				subscription_data_src = subscription_attributes[:subscription_data_src]
 
 				used_subscription_ids = TransactionItem.where( data_src: @data_src, src_subscription_id: src_subscription_id, src_transaction_id: transaction_item.src_transaction_id ).where.not( subscription_id: nil ).select('subscription_id')
-				subscription = Subscription.where( data_src: subscription_data_src, src_subscription_id: src_subscription_id ).where.not( id: used_subscription_ids ).first
+
+				subscription = Subscription.where( data_src: subscription_data_src, src_subscription_id: src_subscription_id, src_subscription_offer_id: src_subscription_offer_id ).where.not( id: used_subscription_ids ).first if src_subscription_offer_id.present?
+				subscription ||= Subscription.where( data_src: subscription_data_src, src_subscription_id: src_subscription_id, src_subscription_offer_id: nil ).where.not( id: used_subscription_ids ).first
 
 				subscription ||= Subscription.create(
 					data_src: subscription_data_src,
@@ -1023,6 +1026,7 @@ module Aristotle
 
 					src_created_at: transaction_item.src_created_at,
 					src_subscription_id: src_subscription_id,
+					src_subscription_offer_id: src_subscription_offer_id,
 					src_order_id: transaction_item.src_order_id,
 
 					event_data_src:			transaction_item.event_data_src,
@@ -1072,6 +1076,9 @@ module Aristotle
 					# trial_end_at: nil,
 					# trail_start_at: nil,
 				)
+
+				subscription.src_subscription_offer_id = src_subscription_offer_id
+				subscription.save
 
 				if subscription.errors.present?
 					Rails.logger.info subscription.attributes.to_s
@@ -1303,10 +1310,12 @@ module Aristotle
 				if order_offer[:subscription].present?
 					src_subscription = order_offer[:subscription]
 					src_subscription_id = src_subscription[:src_subscription_id]
+					src_subscription_offer_id = src_subscription[:src_subscription_offer_id]
 
 					subscription_attributes = src_subscription.merge(
 						subscription_id: src_subscription_id,
 						src_subscription_id: src_subscription_id,
+						src_subscription_offer_id: src_subscription_offer_id,
 						subscription_data_src: src_subscription[:subscription_data_src],
 					)
 				end
@@ -1330,6 +1339,7 @@ module Aristotle
 						product: offer.product,
 						subscription_interval: subscription_interval,
 						src_subscription_id: src_subscription_id.to_s,
+						src_subscription_offer_id: src_subscription_offer_id.to_s,
 						subscription_attributes: subscription_attributes,
 						amount: amount,
 						sku_cache: order_offer[:skus],
