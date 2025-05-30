@@ -817,6 +817,7 @@ module Aristotle
 
 		def extract_location_from_src_order_location_address_field( src_order, location_address_field )
 			location_address = src_order[location_address_field]
+			return nil unless location_address.present?
 
 			location = Location.where( zip: location_address[:zip] ).first
 
@@ -909,7 +910,10 @@ module Aristotle
 			client_id = src_order[:client_id]
 
 			# Merge results ***********************
-			state_attributes = timestamps.merge( status: status )
+			state_attributes = timestamps.merge(
+				status: status,
+				order_ip: src_order[:ip],
+			)
 			if src_order[:purchase_event].present?
 				event = src_order[:purchase_event]
 
