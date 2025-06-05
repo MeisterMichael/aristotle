@@ -1,3 +1,5 @@
+require 'acts-as-taggable-array-on'
+
 module Aristotle
 	class Customer < ApplicationRecord
 
