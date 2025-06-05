@@ -9,6 +9,8 @@ module Aristotle
 
 		enum status: { 'redacted' => -100, 'guest' => 0, 'active' => 1, 'suspended' => 2 }
 
+		acts_as_taggable_array_on :sources
+
 		def self.where_email( email )
 			all.where( "lower(email) = :email", email: email.downcase )
 		end
