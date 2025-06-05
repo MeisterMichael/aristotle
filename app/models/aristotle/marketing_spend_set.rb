@@ -1,8 +1,6 @@
 module Aristotle
 	class MarketingSpendSet < ApplicationRecord
 
-		after_save :process_daily!
-
 		has_many :marketing_spends
 
 		def process_totals_into_marketing_spends_metrics
@@ -42,7 +40,7 @@ module Aristotle
 			end
 		end
 
-		def process_daily!
+		def sync!
 			self.marketing_spends.destroy_all
 			return if number_of_days.nil?
 			next_start_at = self.start_at
