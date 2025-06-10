@@ -3,7 +3,7 @@ module Aristotle
 
 		# belongs_to :campaign, required: false
 		belongs_to :email_campaign, required: false
-		belongs_to :marketing_daily_spend, required: false
+		belongs_to :marketing_spend_set, required: false
 		enum purpose: { 'spend' => 0, 'research' => 1 }
 
 
