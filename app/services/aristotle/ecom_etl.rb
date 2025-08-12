@@ -620,11 +620,11 @@ module Aristotle
 				# Create update transaction item's attributes
 				transaction_item.attributes = transaction_item_attributes
 
-				transaction_item.channel_partner ||= order.channel_partner
+				transaction_item.channel_partner = order.channel_partner
 
 				if subscription.present?
 
-					subscription.channel_partner ||= transaction_item.channel_partner
+					subscription.channel_partner = transaction_item.channel_partner
 					subscription.deny_recurring_commissions ||= (subscription.channel_partner.try(:deny_recurring_commissions) || false)
 
 					puts "subscription.changes #{subscription.changes.to_json}" if subscription.changes.present?
@@ -831,13 +831,13 @@ module Aristotle
 				order.try("#{attribute}=",value)
 			end
 
-			order.channel_partner		||= self.extract_channel_partner_from_src_order( src_order )
-			order.location					||= self.extract_location_from_src_order( src_order )
+			order.channel_partner	= self.extract_channel_partner_from_src_order( src_order )
+			order.location			||= self.extract_location_from_src_order( src_order )
 			order.billing_location	||= self.extract_billing_location_from_src_order( src_order )
 			order.shipping_location	||= self.extract_shipping_location_from_src_order( src_order )
-			order.customer					= self.extract_customer_from_src_order( src_order )
+			order.customer			= self.extract_customer_from_src_order( src_order )
 			order.wholesale_client	||= self.extract_wholesale_client_from_src_order( src_order )
-			order.src_order_label		||= self.extract_order_label_from_order( src_order )
+			order.src_order_label	||= self.extract_order_label_from_order( src_order )
 
 			unless order.save
 				raise Exception.new( "Order Create Error: #{order.errors.full_messages}" )
