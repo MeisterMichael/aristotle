@@ -817,10 +817,12 @@ module Aristotle
 
 		def extract_location_from_src_order_location_address_field( src_order, location_address_field )
 			location_address = src_order[location_address_field]
-			location_country_code = location_address[:geo_country][:abbrev]
-			location_zip = location_address[:zip]
 
 			return nil unless location_address.present?
+
+			location_country_code = location_address.dig(:geo_country,:abbrev)
+			location_zip = location_address[:zip]
+			
 			return nil if location_zip.blank? || location_country_code.blank?
 
 			location = Location.where( zip: location_zip, country_code: location_country_code ).first
