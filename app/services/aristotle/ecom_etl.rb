@@ -90,8 +90,11 @@ module Aristotle
 			src_refunds = self.extract_src_refunds_from_src_order( src_order )
 
 			src_refunds.each do |src_refund|
-
-				refund_transaction_items = self.process_refund( src_refund, data_src )
+				begin
+					refund_transaction_items = self.process_refund( src_refund, data_src )
+				rescue Exception => e
+					NewRelic::Agent.notice_error(e) if defined?( NewRelic )
+				end
 
 			end
 
