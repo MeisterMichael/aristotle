@@ -289,7 +289,12 @@ module Aristotle
 
 
 						report_data_xml = RestClient.get( report_document_reference.url )
-						report_data_hash = Hash.from_xml( report_data_xml )
+						begin
+							report_data_hash = Hash.from_xml( report_data_xml )
+						rescue Exception => e
+							::ErrorMailer.notification( "SpAmazonEtl:pull_and_process_settlements (#{@marketplace_id}) -> Hash.from_xml", e, message_body: JSON.pretty_generate({ report_data_xml: report_data_xml, 'report_document_reference.url' => report_document_reference.url, report_id: report_id }) ).deliver_now if defined?( ::ErrorMailer )
+							raise e
+						end
 						# puts JSON.pretty_generate(report_data_hash)
 
 
