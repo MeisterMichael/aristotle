@@ -120,64 +120,84 @@ module Aristotle
 
 				account_rows = []
 
-				begin
-					#FacebookAds::ServerError: Please reduce the amount of data you're asking for, then retry your request
-					insights = ad_account.insights( insight_options )
+				(1..10).each do |attempt_number|
 
-					# insights.each do |insight_row|
-					# 	puts JSON.pretty_generate insight_row
-					# end
+					begin
+						#FacebookAds::ServerError: Please reduce the amount of data you're asking for, then retry your request
+						insights = ad_account.insights( insight_options )
 
-					puts "        insights.each!"
+						# insights.each do |insight_row|
+						# 	puts JSON.pretty_generate insight_row
+						# end
 
-					insights.each do |insight_row|
+						puts "        insights.each!"
 
-						# puts JSON.pretty_generate insight_row
-						# die()
+						insights.each do |insight_row|
 
-						row = { 'date_start' => insight_row['date_start'], 'date_stop' => insight_row['date_stop'] } #{ 'account_id' => ad_account_id, 'account_name' => ad_account.name }
+							# puts JSON.pretty_generate insight_row
+							# die()
 
-						row['action_types'] = (insight_row['actions'] || []).collect{|ar| ar['action_type'] }
+							row = { 'date_start' => insight_row['date_start'], 'date_stop' => insight_row['date_stop'] } #{ 'account_id' => ad_account_id, 'account_name' => ad_account.name }
 
-						FACEBOOK_LEVEL_FIELDS.each do |field|
-							row[field] = insight_row[field] if insight_row[field].present?
-						end
+							row['action_types'] = (insight_row['actions'] || []).collect{|ar| ar['action_type'] }
 
-						FACEBOOK_NUMERIC_FIELDS.each do |field|
-							row[field] = insight_row[field].to_f
-						end
-
-						FACEBOOK_ACTION_NUMERIC_FIELDS.each do |action_field|
-							row['purchase.'+action_field] = 0.0
-							row['link_click.'+action_field] = 0.0
-							row['landing_page_view.'+action_field] = 0.0
-
-							(insight_row[action_field] || []).each do |action_field_row|
-								row['purchase.'+action_field] = action_field_row['value'].to_f if ['offsite_conversion.fb_pixel_purchase'].include? action_field_row['action_type']
-								row['link_click.'+action_field] = action_field_row['value'].to_f if ['link_click'].include? action_field_row['action_type']
-								row['landing_page_view.'+action_field] = action_field_row['value'].to_f if ['landing_page_view'].include? action_field_row['action_type']
+							FACEBOOK_LEVEL_FIELDS.each do |field|
+								row[field] = insight_row[field] if insight_row[field].present?
 							end
+
+							FACEBOOK_NUMERIC_FIELDS.each do |field|
+								row[field] = insight_row[field].to_f
+							end
+
+							FACEBOOK_ACTION_NUMERIC_FIELDS.each do |action_field|
+								row['purchase.'+action_field] = 0.0
+								row['link_click.'+action_field] = 0.0
+								row['landing_page_view.'+action_field] = 0.0
+
+								(insight_row[action_field] || []).each do |action_field_row|
+									row['purchase.'+action_field] = action_field_row['value'].to_f if ['offsite_conversion.fb_pixel_purchase'].include? action_field_row['action_type']
+									row['link_click.'+action_field] = action_field_row['value'].to_f if ['link_click'].include? action_field_row['action_type']
+									row['landing_page_view.'+action_field] = action_field_row['value'].to_f if ['landing_page_view'].include? action_field_row['action_type']
+								end
+							end
+
+							row['account_name']	= ad_account_name
+							row['account_id']	= ad_account_id
+
+							account_rows << row
+
 						end
 
-						row['account_name']	= ad_account_name
-						row['account_id']	= ad_account_id
+						puts "        account_rows.count #{account_rows.count}"
 
-						account_rows << row
+						puts "        rows.count #{rows.count}"
+						puts "        success"
 
+						break
+					rescue Exception => e
+						puts "        failure occurred while querying insights (#{e.message})"
+
+						if e.message.include?("Application request limit reached: Too many API requests") && attempt_number < 10
+							# if an appllication limit has been reached then sleep and wait for
+							# the cooldown, then try again.
+							puts "        -> cooling down #{(30 * attempt_number)}"
+							sleep (30 * attempt_number)
+						else # if not( e.message.include?("Please reduce the amount of data you're asking for, then retry your request") )
+							raise e
+						end
 					end
 
-					puts "        account_rows.count #{account_rows.count}"
+					# If you didn't break, then we are trying again.
+					# Clear all account rows (just in case the failure
+					# happened part way)
+					account_rows = []
 
-					rows = rows + account_rows
-					puts "        rows.count #{rows.count}"
-					puts "        success"
-				rescue Exception => e
-					puts "        failure occurred while querying insights (#{e.message})"
-					raise e unless e.message.include? "Please reduce the amount of data you're asking for, then retry your request"
 				end
 
+				rows = rows + account_rows
+
 				puts "  -> cooling down between accounts"
-				sleep 10
+				sleep 60
 				puts "  -> cooling down complete"
 
 			end
