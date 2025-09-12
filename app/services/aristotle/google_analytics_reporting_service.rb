@@ -1,6 +1,7 @@
 
 require 'google/api_client/client_secrets'
 require 'google/apis/analyticsreporting_v4'
+require 'google/cloud/errors'
 # Google::Apis.logger.level = Logger::INFO
 # OpenSSL::SSL::VERIFY_PEER = OpenSSL::SSL::VERIFY_NONE
 
@@ -265,7 +266,18 @@ module Aristotle
 					limit: limit,
 					offset: offset,
 				)
-				response = @client.run_report request
+
+				(1..10).each do |attempt_number|
+					begin
+						response = @client.run_report request
+						break
+					rescue Google::Cloud::DeadlineExceededError => e
+						raise e if attempt_number == 10
+
+						puts "[deadline exceeded error: cooling down #{10 * attempt_number} seconds; attempt #{attempt_number}; GoogleAnalyticsReportingService#extract_last_attribution_marketing_report > client.run_report]"
+						sleep (10 * attempt_number)
+					end
+				end
 				# # puts JSON.pretty_generate response.to_h
 				# response = nil
 			end
