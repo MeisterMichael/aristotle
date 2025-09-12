@@ -180,7 +180,7 @@ module Aristotle
 						if e.message.include?("Application request limit reached: Too many API requests") && attempt_number < 10
 							# if an appllication limit has been reached then sleep and wait for
 							# the cooldown, then try again.
-							puts "        -> cooling down #{(30 * attempt_number)}"
+							puts "        -> cooling down due to error (#{(30 * attempt_number)})"
 							sleep (30 * attempt_number)
 						else # if not( e.message.include?("Please reduce the amount of data you're asking for, then retry your request") )
 							raise e
@@ -196,7 +196,7 @@ module Aristotle
 
 				rows = rows + account_rows
 
-				puts "  -> cooling down between accounts"
+				puts "  -> cooling down between accounts (60)"
 				sleep 60
 				puts "  -> cooling down complete"
 
