@@ -1079,7 +1079,7 @@ module Aristotle
 			conversion_properties = self.get_affiliate_conversion_properties( src_order )
 			payment_type = self.get_order_payment_type( src_order )
 
-			transaction_items_attributes = self.transform_order_items_to_transaction_items_attributes( src_order[:order_items], src_order[:order_offers], commission_total: ( conversion_properties[:commission_total] || 0 ) )
+			transaction_items_attributes = self.transform_order_items_to_transaction_items_attributes( src_order, src_order[:order_items], src_order[:order_offers], commission_total: ( conversion_properties[:commission_total] || 0 ) )
 
 			transaction_items_attributes.each do |transaction_item_attributes|
 				transaction_item_attributes[:transaction_type]	= 'charge'
@@ -1259,22 +1259,19 @@ module Aristotle
 			product
 		end
 
-		def transform_order_items_to_transaction_items_attributes( order_items, order_offers, args = {} )
+		def transform_order_items_to_transaction_items_attributes( src_order, order_items, order_offers, args = {} )
 			transaction_items_attributes = []
 
-			prod_order_items = order_items.select{ |order_item| order_item[:order_item_type].to_i == ORDER_ITEM_TYPE_PROD }
-			shipping_order_items = order_items.select{ |order_item| order_item[:order_item_type].to_i == ORDER_ITEM_TYPE_SHIPPING }
-			tax_order_items = order_items.select{ |order_item| order_item[:order_item_type].to_i == ORDER_ITEM_TYPE_TAX }
 			discount_order_items = order_items.select{ |order_item| order_item[:order_item_type].to_i == ORDER_ITEM_TYPE_DISCOUNT }
 
 			if order_offers.present?
 				prod_total = order_offers.sum{|order_offer| order_offer[:subtotal].to_i }
 			else
-				prod_total = order_items.sum{|order_item| order_item[:subtotal].to_i }
+				prod_total = src_order[:subtotal].to_i
 			end
 
-			shipping_total = shipping_order_items.sum{|order_item| order_item[:subtotal].to_i }
-			tax_total = tax_order_items.sum{|order_item| order_item[:subtotal].to_i }
+			shipping_total = src_order[:shipping].to_i
+			tax_total = src_order[:tax].to_i
 			discount_total = discount_order_items.sum{|order_item| order_item[:subtotal].to_i }
 			commission_total = (args[:commission_total] || 0).to_i
 
@@ -1354,8 +1351,7 @@ module Aristotle
 			end
 
 			transaction_items_attributes = transaction_items_attributes.sort_by{ |row| row[:line_item_id].to_i }
-
-
+356 + 863 + 485 + 1175 + 355 + 862 = 4096
 			ratios = transaction_items_attributes.collect{|item| item[:amount] / prod_total } if prod_total != 0
 			ratios = transaction_items_attributes.collect{|item| 1.0 } if prod_total == 0
 
