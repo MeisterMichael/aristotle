@@ -1351,7 +1351,7 @@ module Aristotle
 			end
 
 			transaction_items_attributes = transaction_items_attributes.sort_by{ |row| row[:line_item_id].to_i }
-356 + 863 + 485 + 1175 + 355 + 862 = 4096
+
 			ratios = transaction_items_attributes.collect{|item| item[:amount] / prod_total } if prod_total != 0
 			ratios = transaction_items_attributes.collect{|item| 1.0 } if prod_total == 0
 
