@@ -1,7 +1,7 @@
 module Aristotle
 	class MarketingSpendSet < ApplicationRecord
 
-		has_many :marketing_spends
+		has_many :marketing_spends, dependent: :destroy
 
 		def process_totals_into_marketing_spends_metrics
 			distributions = {}
