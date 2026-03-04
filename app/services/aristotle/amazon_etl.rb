@@ -367,22 +367,44 @@ module Aristotle
 			customer
 		end
 
+		def country_code_from_marketplace( amazon_order )
+			marketplace_id = amazon_order['MarketplaceId']
+			MARKETPLACE_COUNTRY_IDS.invert[marketplace_id]
+		end
+
 		def extract_location_from_src_order( amazon_order )
 
 			shipping_address = amazon_order['ShippingAddress']
 
 			return nil unless shipping_address.present?
 
-			location = Location.where( zip: shipping_address['PostalCode'] ).first
+			zip = shipping_address['PostalCode']
+			country_code = shipping_address['CountryCode']
 
-			location ||= Location.create(
-				data_src: @data_src,
-				city: shipping_address['City'],
-				state_code: shipping_address['StateOrRegion'],
-				zip: shipping_address['PostalCode'],
-				country_code: shipping_address['CountryCode'],
-			)
+			if zip.present?
+				location = Location.where( zip: zip ).first
 
+				location ||= Location.create(
+					data_src: @data_src,
+					city: shipping_address['City'],
+					state_code: shipping_address['StateOrRegion'],
+					zip: zip,
+					country_code: country_code,
+				)
+			else
+				# PII-restricted order — infer country from marketplace if not provided
+				country_code = country_code_from_marketplace( amazon_order ) if country_code.blank?
+
+				if country_code.present?
+					location = Location.where( zip: nil, country_code: country_code, data_src: @data_src ).first
+					location ||= Location.create(
+						data_src: @data_src,
+						country_code: country_code,
+					)
+				else
+					return nil
+				end
+			end
 
 			if location.errors.present?
 				Rails.logger.info location.attributes.to_s
