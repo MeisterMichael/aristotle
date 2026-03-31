@@ -361,12 +361,13 @@ module Aristotle
 
 			begin
 				# Request a new report for the specified date range
-				create_response = report_api_call( :create_report, [{
+				report_spec = AmzSpApi::ReportsApiModel::CreateReportSpecification.new(
 					report_type: report_type,
 					marketplace_ids: [@marketplace_id],
 					data_start_time: data_start_date.iso8601,
 					data_end_time: data_end_date.iso8601,
-				}] )
+				)
+				create_response = report_api_call( :create_report, [report_spec] )
 
 				report_id = create_response.report_id
 				puts "  Requested report #{report_id}, waiting for completion..."
