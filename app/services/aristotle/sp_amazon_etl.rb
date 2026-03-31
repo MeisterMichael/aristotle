@@ -386,7 +386,15 @@ module Aristotle
 					report_document_reference = report_api_call( :get_report_document, [report.report_document_id] )
 					report_data = RestClient.get( report_document_reference.url )
 
-					backfill_customers_from_shipment_report( report_data.to_s )
+					# Decompress if gzip-encoded
+					report_string = report_data.to_s
+					if report_document_reference.respond_to?(:compression_algorithm) && report_document_reference.compression_algorithm == 'GZIP'
+						require 'zlib'
+						report_string = Zlib::GzipReader.new( StringIO.new(report_string) ).read
+						puts "  Decompressed report (#{report_string.bytesize} bytes)"
+					end
+
+					backfill_customers_from_shipment_report( report_string )
 				else
 					puts "  Report failed or timed out: #{report&.processing_status}"
 				end
