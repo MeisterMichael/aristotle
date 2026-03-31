@@ -351,6 +351,51 @@ module Aristotle
 
 		end
 
+		def pull_and_process_shipments( args = {} )
+			created_since = DateTime.parse((args[:created_after] || 2.weeks.ago).to_s)
+			created_until = DateTime.parse(Time.now.to_s)
+
+			report_type = 'GET_FLAT_FILE_ALL_ORDERS_DATA_BY_ORDER_DATE_GENERAL'
+			puts "Pulling #{report_type} for customer identity backfill (#{@marketplace_country})"
+
+			begin
+				next_token = nil
+
+				loop do
+					report_options = if next_token.present?
+						{ next_token: next_token }
+					else
+						{
+							report_types: [report_type],
+							marketplace_ids: [@marketplace_id],
+							page_size: 10,
+							created_since: created_since,
+							created_until: created_until,
+						}
+					end
+
+					response = report_api_call( :get_reports, [report_options] )
+					next_token = response.next_token
+
+					response.reports.each do |report|
+						report_id = report[:reportId]
+						puts "  Report #{report_id} #{report[:processingEndTime]}"
+
+						report_document_reference = report_api_call( :get_report_document, [report[:reportDocumentId]] )
+						report_data = RestClient.get( report_document_reference.url )
+
+						backfill_customers_from_shipment_report( report_data.to_s )
+					end
+
+					break unless next_token.present?
+				end
+
+			rescue => e
+				puts "SpAmazonEtl:pull_and_process_shipments #{report_type} (#{@marketplace_id}) error: #{e.message}"
+				ErrorMailer.notification( "SpAmazonEtl:pull_and_process_shipments #{report_type} (#{@marketplace_id})", e ).deliver_now if defined?( ::ErrorMailer )
+			end
+		end
+
 		def pull_and_process_orders( args = {} )
 
 			if args[:created_after].nil? && args[:last_updated_after].nil?
@@ -1217,6 +1262,119 @@ module Aristotle
 
 		def extract_id_from_src_refund( amazon_refund )
 			"refund:#{amazon_refund['RefundDate']}:#{amazon_refund['AmazonOrderId']}"
+		end
+
+		def backfill_customers_from_shipment_report( report_tsv )
+			require 'csv'
+			require 'stringio'
+
+			# Stream-parse TSV and deduplicate by order ID (multi-item orders have multiple rows)
+			orders_by_id = {}
+			row_count = 0
+
+			CSV.new( StringIO.new(report_tsv), col_sep: "\t", headers: true, liberal_parsing: true ).each do |row|
+				row_count += 1
+				amazon_order_id = row['amazon-order-id']
+				buyer_email = row['buyer-email']
+
+				next unless amazon_order_id.present? && buyer_email.present?
+				next if orders_by_id.key?(amazon_order_id)
+
+				orders_by_id[amazon_order_id] = {
+					buyer_email: buyer_email,
+					buyer_name: row['buyer-name'] || row['recipient-name'],
+					purchase_date: row['purchase-date'],
+					zip: row['ship-postal-code'],
+					city: row['ship-city'],
+					state_code: row['ship-state'],
+					country_code: row['ship-country'],
+				}
+			end
+
+			puts "  -> Parsed #{row_count} shipment rows, #{orders_by_id.size} unique orders with buyer email"
+			return if orders_by_id.empty?
+
+			# Batch-query to find which orders actually need backfill (1 query per batch of 500)
+			backfill_count = 0
+			orders_needing_backfill = Set.new
+
+			orders_by_id.keys.each_slice(500) do |order_id_batch|
+				TransactionItem.where(
+					data_src: @data_src,
+					src_transaction_id: order_id_batch
+				).where( "customer_id IS NULL OR customer_id = 0" )
+				.distinct.pluck(:src_transaction_id)
+				.each { |id| orders_needing_backfill.add(id) }
+			end
+
+			puts "  -> #{orders_needing_backfill.size} orders need customer backfill"
+			return if orders_needing_backfill.empty?
+
+			# Process only orders that need backfill
+			orders_needing_backfill.each do |amazon_order_id|
+				row_data = orders_by_id[amazon_order_id]
+
+				# Match or create customer using buyer email
+				customer = Customer.where( email: row_data[:buyer_email] ).first
+				customer ||= Customer.create(
+					data_src: @data_src,
+					src_customer_id: row_data[:buyer_email],
+					name: row_data[:buyer_name],
+					login: row_data[:buyer_email],
+					email: row_data[:buyer_email],
+					src_created_at: row_data[:purchase_date],
+				)
+
+				next unless customer.persisted?
+
+				customer.first_transacted_at = [ (customer.first_transacted_at || Time.now), Time.parse(row_data[:purchase_date]) ].min if customer.respond_to?(:first_transacted_at) && row_data[:purchase_date].present?
+				customer.save if customer.changed?
+
+				# Update transaction_items
+				updated = TransactionItem.where(
+					data_src: @data_src,
+					src_transaction_id: amazon_order_id
+				).where( "customer_id IS NULL OR customer_id = 0" )
+				.update_all( customer_id: customer.id )
+
+				backfill_count += updated
+
+				# Backfill location from shipping address
+				zip = row_data[:zip]
+				country_code = row_data[:country_code]
+				location = nil
+
+				if zip.present?
+					location = Location.where( zip: zip ).first
+					location ||= Location.create(
+						data_src: @data_src,
+						city: row_data[:city],
+						state_code: row_data[:state_code],
+						zip: zip,
+						country_code: country_code,
+					)
+				elsif country_code.present?
+					location = Location.where( zip: nil, country_code: country_code, data_src: @data_src ).first
+					location ||= Location.create(
+						data_src: @data_src,
+						country_code: country_code,
+					)
+				end
+
+				# Update associated order
+				order = Order.where( data_src: @data_src, src_order_id: amazon_order_id ).first
+				if order.present?
+					order_updates = {}
+					order_updates[:customer_id] = customer.id if order.customer_id.nil? || order.customer_id == 0
+					if location.present? && location.persisted?
+						order_updates[:location_id] = location.id if order.location_id.nil? || order.location_id == 0
+						order_updates[:shipping_location_id] = location.id if order.shipping_location_id.nil? || order.shipping_location_id == 0
+					end
+					order.update( order_updates ) if order_updates.present?
+				end
+			end
+
+			puts "  -> Backfilled customer_id on #{backfill_count} transaction_items"
 		end
 
 		def orders_api
