@@ -355,7 +355,7 @@ module Aristotle
 			data_start_date = DateTime.parse((args[:created_after] || 2.weeks.ago).to_s)
 			data_end_date = DateTime.parse((args[:created_before] || Time.now).to_s)
 
-			report_type = 'GET_FLAT_FILE_ALL_ORDERS_DATA_BY_ORDER_DATE_GENERAL'
+			report_type = 'GET_AMAZON_FULFILLED_SHIPMENTS_DATA_GENERAL'
 			puts "Pulling #{report_type} for customer identity backfill (#{@marketplace_country})"
 			puts "  Date range: #{data_start_date} to #{data_end_date}"
 
