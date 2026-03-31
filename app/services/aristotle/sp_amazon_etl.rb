@@ -352,42 +352,42 @@ module Aristotle
 		end
 
 		def pull_and_process_shipments( args = {} )
-			created_since = DateTime.parse((args[:created_after] || 2.weeks.ago).to_s)
-			created_until = DateTime.parse(Time.now.to_s)
+			data_start_date = DateTime.parse((args[:created_after] || 2.weeks.ago).to_s)
+			data_end_date = DateTime.parse((args[:created_before] || Time.now).to_s)
 
 			report_type = 'GET_FLAT_FILE_ALL_ORDERS_DATA_BY_ORDER_DATE_GENERAL'
 			puts "Pulling #{report_type} for customer identity backfill (#{@marketplace_country})"
+			puts "  Date range: #{data_start_date} to #{data_end_date}"
 
 			begin
-				next_token = nil
+				# Request a new report for the specified date range
+				create_response = report_api_call( :create_report, [{
+					report_type: report_type,
+					marketplace_ids: [@marketplace_id],
+					data_start_time: data_start_date.iso8601,
+					data_end_time: data_end_date.iso8601,
+				}] )
 
-				loop do
-					report_options = if next_token.present?
-						{ next_token: next_token }
-					else
-						{
-							report_types: [report_type],
-							marketplace_ids: [@marketplace_id],
-							page_size: 10,
-							created_since: created_since,
-							created_until: created_until,
-						}
-					end
+				report_id = create_response.report_id
+				puts "  Requested report #{report_id}, waiting for completion..."
 
-					response = report_api_call( :get_reports, [report_options] )
-					next_token = response.next_token
+				# Poll for report completion (max 10 minutes)
+				report = nil
+				60.times do
+					sleep 10
+					report = report_api_call( :get_report, [report_id] )
+					puts "    Status: #{report.processing_status}"
+					break if ['DONE', 'CANCELLED', 'FATAL'].include?(report.processing_status)
+				end
 
-					response.reports.each do |report|
-						report_id = report[:reportId]
-						puts "  Report #{report_id} #{report[:processingEndTime]}"
+				if report&.processing_status == 'DONE' && report.report_document_id.present?
+					puts "  Downloading report document #{report.report_document_id}"
+					report_document_reference = report_api_call( :get_report_document, [report.report_document_id] )
+					report_data = RestClient.get( report_document_reference.url )
 
-						report_document_reference = report_api_call( :get_report_document, [report[:reportDocumentId]] )
-						report_data = RestClient.get( report_document_reference.url )
-
-						backfill_customers_from_shipment_report( report_data.to_s )
-					end
-
-					break unless next_token.present?
+					backfill_customers_from_shipment_report( report_data.to_s )
+				else
+					puts "  Report failed or timed out: #{report&.processing_status}"
 				end
 
 			rescue => e
