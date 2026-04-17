@@ -65,6 +65,8 @@ module Aristotle
 					email_campaign_id: email_campaign_id,
 				)
 
+				marketing_spend.is_manual = is_manual if marketing_spend.respond_to?(:is_manual=) && self.respond_to?(:is_manual)
+
 				marketing_spends_metrics.each do |attr,val|
 					marketing_spend.try("#{attr}=",val)
 				end
