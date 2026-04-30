@@ -553,6 +553,8 @@ SQL
 
 				puts "Page #{page_i} - Done"
 
+				args[:progress_callback].call(last_event_id) if args[:progress_callback].respond_to?(:call)
+
 				break if event_rows.count < limit
 
 				offset += event_rows.count
